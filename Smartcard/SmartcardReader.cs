@@ -39,6 +39,14 @@ namespace Smartcard
 
             result = SmartcardInterop.SCardLocateCards(context, d, scardstate, Convert.ToUInt32(r.Count));
             System.Diagnostics.Debug.Print(scardstate[0].currentState.ToString());
+
+            cardLen = 16384;
+            cards = new char[cardLen];
+            result = SmartcardInterop.SCardListCardsW(IntPtr.Zero, scardstate[0].atr, IntPtr.Zero, 0, cards, out cardLen);
+            var card = MultiStringToArray(cards);
+            System.Diagnostics.Debug.Print(result.ToString());
+
+            SmartcardInterop.SCardReleaseContext(context);
         }
 
         static IList<string> MultiStringToArray(char[] multistring)
