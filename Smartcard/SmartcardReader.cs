@@ -46,6 +46,16 @@ namespace Smartcard
             var card = MultiStringToArray(cards);
             System.Diagnostics.Debug.Print(result.ToString());
 
+            var provider = new StringBuilder();
+            uint len = 256;
+            provider.EnsureCapacity(256);
+            result = SmartcardInterop.SCardGetCardTypeProviderNameW(IntPtr.Zero, card[0], SmartcardInterop.Provider.Csp, provider, out len);
+
+            var container = @"\\.\" + scardstate[0].reader + @"\";
+            IntPtr cctx;
+            var success = SmartcardInterop.CryptAcquireContextW(out cctx, container, provider.ToString(), SmartcardInterop.CryptoProvider.RsaFull, 0);
+
+            SmartcardInterop.CryptReleaseContext(cctx, 0);
             SmartcardInterop.SCardReleaseContext(context);
         }
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using System.Runtime.InteropServices;
 
 namespace Smartcard
@@ -81,6 +82,47 @@ namespace Smartcard
             System = 2
         }
 
+        public enum Provider : uint
+        {
+            Primary = 1,
+            Csp = 2,
+            Ksp = 3,
+            CardModule = 0x80000001
+        }
+
+        public enum CryptoProvider : uint
+        {
+            RsaFull = 1,
+            RsaSig = 2,
+            Dss = 3,
+            Fortezza = 4,
+            MsExchange = 5,
+            Ssl = 6,
+            RsaSChannel = 12,
+            DssDh = 13,
+            EcEcdsaSig = 14,
+            EcEcnraSig = 15,
+            EcEcdsaFull = 16,
+            EcEcnraFull = 17,
+            DhSChannel = 18,
+            SpyrusLynks = 20,
+            Rng = 21,
+            IntelSec = 22,
+            ReplaceOwf = 23,
+            RsaAes = 24
+        }
+
+        [Flags]
+        public enum CryptoFlags : uint
+        {
+            VerifyContext = 0xF0000000,
+            NewKeySet = 0x08,
+            DeleteKeySet = 0x10,
+            MachineKeySet = 0x20,
+            Silent = 0x40,
+            DefaultContainerOptional = 0x80
+        }
+
         [Flags]
         public enum State : uint
         {
@@ -118,7 +160,6 @@ namespace Smartcard
             public uint atrLength;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 36)]
             public byte[] atr;
-
         }
 
         [DllImport("winscard.dll")]
@@ -135,5 +176,14 @@ namespace Smartcard
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
         public extern static int SCardLocateCards(IntPtr context, string cards, [In,Out] ScardReaderState[] states, uint readersLength);
+
+        [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
+        public extern static int SCardGetCardTypeProviderNameW(IntPtr context, string cardname, [MarshalAs(UnmanagedType.U4)] Provider providerId, StringBuilder provider, out uint providerLength);
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
+        public extern static bool CryptAcquireContextW(out IntPtr context, string container, string provider, [MarshalAs(UnmanagedType.U4)] CryptoProvider provType, uint flags);
+
+        [DllImport("advapi32.dll")]
+        public extern static bool CryptReleaseContext(IntPtr content, uint flags);
     }
 }
