@@ -8,11 +8,14 @@ namespace Smartcard
 {
     public class SmartcardEventArgs : EventArgs
     {
-        public readonly Smartcard smartCard;
+        public readonly Smartcard SmartCard;
 
-        public SmartcardEventArgs(Smartcard scard)
+        public readonly string ReaderName;
+
+        public SmartcardEventArgs(Smartcard scard, string reader)
         {
-            this.smartCard = scard;
+            this.SmartCard = scard;
+            this.ReaderName = reader;
         }
     }
 }

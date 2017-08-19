@@ -12,6 +12,7 @@ namespace Smartcard
         {
             var x = new SmartcardReader();
             x.OnCardInserted += CardInserted;
+            x.OnCardRemoved += CardRemoved;
 
             x.StartMonitoring();
 
@@ -20,12 +21,19 @@ namespace Smartcard
 
         private static void CardInserted(object sender, EventArgs args)
         {
-            var scard = ((SmartcardEventArgs)args).smartCard;
+            var scard = ((SmartcardEventArgs)args).SmartCard;
 
             foreach (var cert in scard.Certificates)
             {
                 System.Console.WriteLine(cert.Certificate.Subject);
             }
+        }
+
+        private static void CardRemoved(object sender, EventArgs args)
+        {
+            var scard = ((SmartcardEventArgs)args).ReaderName;
+
+            System.Console.WriteLine("Card removed " + scard);
         }
     }
 }
