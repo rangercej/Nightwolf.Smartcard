@@ -14,13 +14,6 @@ namespace Smartcard
         {
             var result = SmartcardInterop.SCardEstablishContext((uint)SmartcardInterop.Scope.User, IntPtr.Zero, IntPtr.Zero, out context);
 
-            uint readerLen = 1024;
-            var readers = new char[1024];
-
-            result = SmartcardInterop.SCardListReadersW(context, null, readers, out readerLen);
-            var r = MultiStringToArray(readers);
-            System.Diagnostics.Debug.Print(readerLen.ToString());
-
             uint cardLen = 16384;
             var cards = new char[cardLen];
 
@@ -28,17 +21,66 @@ namespace Smartcard
             var c = MultiStringToArray(cards);
             System.Diagnostics.Debug.Print(cardLen.ToString());
 
-            var d = ArrayToMultiString(c);
-            var scardstate = new SmartcardInterop.ScardReaderState[r.Count];
+            uint readerLen = 1024;
+            var readers = new char[1024];
 
-            for (int i = 0; i < r.Count; i++)
+findcards:
+            result = SmartcardInterop.SCardListReadersW(context, null, readers, out readerLen);
+            var r = MultiStringToArray(readers);
+            System.Diagnostics.Debug.Print(readerLen.ToString());
+
+            var waitForCard = true;
+            var scardstatelist = new List<SmartcardInterop.ScardReaderState>();
+            SmartcardInterop.ScardReaderState[] scardstate = null;
+            if (r.Count > 0)
             {
-                scardstate[i].reader = r[i];
-                scardstate[i].currentState = SmartcardInterop.State.Unaware;
+                var d = ArrayToMultiString(c);
+
+                for (int i = 0; i < r.Count; i++)
+                {
+                    var state = new SmartcardInterop.ScardReaderState {
+                        reader = r[i],
+                        currentState = SmartcardInterop.State.Unaware,
+                        eventState = 0,
+                        atrLength = 0
+                    };
+
+                    scardstatelist.Add(state);
+                }
+
+                scardstate = scardstatelist.ToArray();
+                result = SmartcardInterop.SCardLocateCards(context, d, scardstate, Convert.ToUInt32(scardstate.Length));
+                System.Diagnostics.Debug.Print(scardstate[0].currentState.ToString());
+                if ((scardstate[0].eventState & SmartcardInterop.State.Present) != 0)
+                {
+                    waitForCard = false;
+                }
             }
 
-            result = SmartcardInterop.SCardLocateCards(context, d, scardstate, Convert.ToUInt32(r.Count));
-            System.Diagnostics.Debug.Print(scardstate[0].currentState.ToString());
+            if (waitForCard)
+            {
+                const string NotificationReader = @"\\?PnP?\Notification";
+                var state = new SmartcardInterop.ScardReaderState {
+                    reader = NotificationReader,
+                    currentState = 0,
+                    eventState = 0,
+                    atrLength = 0
+                };
+
+                scardstatelist.Add(state);
+
+                scardstate = scardstatelist.ToArray();
+                result = SmartcardInterop.SCardGetStatusChange(context, 0xFFFFFFFF, scardstate, Convert.ToUInt32(scardstate.Length));
+
+                if (result == SmartcardInterop.SCardSuccess 
+                    && scardstate.Count(x => (
+                        x.eventState | SmartcardInterop.State.Changed) != 0 
+                        && x.reader == NotificationReader
+                    ) > 0)
+                {
+                    goto findcards;
+                }
+            }
 
             cardLen = 16384;
             cards = new char[cardLen];
@@ -94,7 +136,7 @@ namespace Smartcard
             SmartcardInterop.SCardReleaseContext(context);
         }
 
-        static IList<string> MultiStringToArray(char[] multistring)
+        private static IList<string> MultiStringToArray(char[] multistring)
         {
             List<string> stringList = new List<string>();
             int i = 0;
@@ -120,7 +162,7 @@ namespace Smartcard
             return stringList;
         }
 
-        static string ArrayToMultiString(IList<string> stringlist)
+        private static string ArrayToMultiString(IList<string> stringlist)
         {
             var sb = new StringBuilder();
 

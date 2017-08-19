@@ -254,6 +254,9 @@ namespace Smartcard
         public extern static int SCardLocateCards(IntPtr context, string cards, [In,Out] ScardReaderState[] states, uint readersLength);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
+        public extern static int SCardGetStatusChange(IntPtr context, uint timeout, [In,Out] ScardReaderState[] states, uint readersLength);
+
+        [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
         public extern static int SCardGetCardTypeProviderNameW(IntPtr context, string cardname, [MarshalAs(UnmanagedType.U4)] Provider providerId, StringBuilder provider, out uint providerLength);
 
         [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
