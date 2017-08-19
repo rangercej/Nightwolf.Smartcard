@@ -45,6 +45,10 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Smartcard.cs" />
+    <Compile Include="SmartcardCertificate.cs" />
+    <Compile Include="SmartcardEventArgs.cs" />
+    <Compile Include="SmartcardException.cs" />
     <Compile Include="SmartcardInterop.cs" />
     <Compile Include="SmartcardReader.cs" />
   </ItemGroup>

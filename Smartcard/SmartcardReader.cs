@@ -6,61 +6,123 @@ using System.Threading.Tasks;
 
 namespace Smartcard
 {
-    class SmartcardReader
+    public class SmartcardReader : IDisposable
     {
-        IntPtr context;
+        public event EventHandler OnCardInserted;
+
+        IntPtr context = IntPtr.Zero;
+
+        private IList<string> ReaderNames = new List<string>();
+        private IList<string> CardNames = new List<string>();
+
+        private IList<SmartcardInterop.ScardReaderState> currentState = null;
 
         public SmartcardReader()
         {
             var result = SmartcardInterop.SCardEstablishContext((uint)SmartcardInterop.Scope.User, IntPtr.Zero, IntPtr.Zero, out context);
 
-            uint cardLen = 16384;
-            var cards = new char[cardLen];
+            RefreshCards();
+            RefreshReaders();
+            RefreshState();
+        }
 
-            result = SmartcardInterop.SCardListCardsW(context, null, IntPtr.Zero, 0, cards, out cardLen);
-            var c = MultiStringToArray(cards);
-            System.Diagnostics.Debug.Print(cardLen.ToString());
-
-            uint readerLen = 1024;
-            var readers = new char[1024];
-
-findcards:
-            result = SmartcardInterop.SCardListReadersW(context, null, readers, out readerLen);
-            var r = MultiStringToArray(readers);
-            System.Diagnostics.Debug.Print(readerLen.ToString());
-
-            var waitForCard = true;
-            var scardstatelist = new List<SmartcardInterop.ScardReaderState>();
-            SmartcardInterop.ScardReaderState[] scardstate = null;
-            if (r.Count > 0)
+        public void StartMonitoring()
+        {
+            if (currentState != null)
             {
-                var d = ArrayToMultiString(c);
-
-                for (int i = 0; i < r.Count; i++)
+                var readersWithCards = currentState.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0);
+                foreach (var reader in readersWithCards)
                 {
-                    var state = new SmartcardInterop.ScardReaderState {
-                        reader = r[i],
-                        currentState = SmartcardInterop.State.Unaware,
-                        eventState = 0,
-                        atrLength = 0
-                    };
-
-                    scardstatelist.Add(state);
-                }
-
-                scardstate = scardstatelist.ToArray();
-                result = SmartcardInterop.SCardLocateCards(context, d, scardstate, Convert.ToUInt32(scardstate.Length));
-                System.Diagnostics.Debug.Print(scardstate[0].currentState.ToString());
-                if ((scardstate[0].eventState & SmartcardInterop.State.Present) != 0)
-                {
-                    waitForCard = false;
+                    FireCardPresentEvent(reader);
                 }
             }
 
-            if (waitForCard)
+            Task.Factory.StartNew(WaitForReaderStateChange);
+        }
+
+        private void FireCardPresentEvent(SmartcardInterop.ScardReaderState state)
+        {
+            var cardname = FindCardWithAtr(state.atr);
+            var scard = new Smartcard(state.reader, cardname);
+            var args = new SmartcardEventArgs(scard);
+
+            OnCardInserted(this, args);
+        }
+
+        private void RefreshReaders()
+        {
+            uint readerLen = 1024;
+            var readers = new char[1024];
+
+            var result = SmartcardInterop.SCardListReadersW(context, null, readers, out readerLen);
+            if (result != SmartcardException.SCardSuccess && result != SmartcardException.SCardENoReadersAvailable)
             {
+                throw new SmartcardException(result);
+            }
+
+            var r = MultiStringToArray(readers);
+            this.ReaderNames = r.ToList();
+        }
+
+        private void RefreshCards()
+        {
+            uint cardLen = 16384;
+            var cards = new char[cardLen];
+
+            var result = SmartcardInterop.SCardListCardsW(context, null, IntPtr.Zero, 0, cards, out cardLen);
+            if (result != SmartcardException.SCardSuccess)
+            {
+                throw new SmartcardException(result);
+            }
+
+            var c = MultiStringToArray(cards);
+            this.CardNames = c.ToList();
+        }
+
+        private void RefreshState()
+        {
+            IList<SmartcardInterop.ScardReaderState> scardstatelist;
+            if (this.currentState == null)
+            {
+                scardstatelist = CreatePendingReaderState();
+            }
+            else
+            {
+                scardstatelist = this.currentState;
+            }
+            
+            SmartcardInterop.ScardReaderState[] scardstate = null;
+            if (this.ReaderNames.Count > 0)
+            {
+                var d = ArrayToMultiString(this.CardNames);
+
+                scardstate = scardstatelist.ToArray();
+                var result = SmartcardInterop.SCardLocateCards(context, d, scardstate, Convert.ToUInt32(scardstate.Length));
+                if (result != SmartcardException.SCardSuccess)
+                {
+                    throw new SmartcardException(result);
+                }
+
+                for (var i = 0; i < scardstate.Length; i++)
+                {
+                    scardstate[i].currentState = scardstate[i].eventState;
+                }
+            }
+
+            this.currentState = scardstate.ToList();
+        }
+
+        private void WaitForReaderStateChange()
+        {
+            while (true)
+            {
+                System.Diagnostics.Debug.Print("StateChange - start");
+                var scardstatelist = this.currentState;
+                SmartcardInterop.ScardReaderState[] scardstate = null;
+
                 const string NotificationReader = @"\\?PnP?\Notification";
-                var state = new SmartcardInterop.ScardReaderState {
+                var state = new SmartcardInterop.ScardReaderState
+                {
                     reader = NotificationReader,
                     currentState = 0,
                     eventState = 0,
@@ -70,70 +132,80 @@ findcards:
                 scardstatelist.Add(state);
 
                 scardstate = scardstatelist.ToArray();
-                result = SmartcardInterop.SCardGetStatusChange(context, 0xFFFFFFFF, scardstate, Convert.ToUInt32(scardstate.Length));
-
-                if (result == SmartcardInterop.SCardSuccess 
-                    && scardstate.Count(x => (
-                        x.eventState | SmartcardInterop.State.Changed) != 0 
-                        && x.reader == NotificationReader
-                    ) > 0)
+                var result = SmartcardInterop.SCardGetStatusChange(context, 500, scardstate, Convert.ToUInt32(scardstate.Length));
+                if (result == SmartcardException.SCardETimeout)
                 {
-                    goto findcards;
+                    continue;
+                }
+
+                if (result != SmartcardException.SCardSuccess)
+                {
+                    throw new SmartcardException(result);
+                }
+
+                var scardChanges = scardstate.Where(x => (x.eventState & SmartcardInterop.State.Changed) != 0).ToList();
+                if (scardChanges.Count == 0)
+                {
+                    continue;
+                }
+
+                if (scardChanges.Any(x => x.reader == NotificationReader))
+                {
+                    RefreshReaders();
+                }
+
+                RefreshState();
+
+                var readersWithCards = currentState.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0);
+                foreach (var reader in readersWithCards)
+                {
+                    FireCardPresentEvent(reader);
                 }
             }
+        }
 
-            cardLen = 16384;
-            cards = new char[cardLen];
-            result = SmartcardInterop.SCardListCardsW(IntPtr.Zero, scardstate[0].atr, IntPtr.Zero, 0, cards, out cardLen);
+        private IList<SmartcardInterop.ScardReaderState> CreatePendingReaderState()
+        {
+            var scardstatelist = new List<SmartcardInterop.ScardReaderState>();
+
+            foreach (var reader in this.ReaderNames)
+            {
+                var state = new SmartcardInterop.ScardReaderState
+                {
+                    reader = reader,
+                    currentState = SmartcardInterop.State.Unaware,
+                    eventState = 0,
+                    atrLength = 0
+                };
+
+                scardstatelist.Add(state);
+            }
+
+            return scardstatelist;
+        }
+
+        private string FindCardWithAtr(byte[] atr)
+        {
+            uint cardLen = 1024;
+            var cards = new char[cardLen];
+            var result = SmartcardInterop.SCardListCardsW(IntPtr.Zero, atr, IntPtr.Zero, 0, cards, out cardLen);
+            if (result != SmartcardException.SCardSuccess)
+            {
+                throw new SmartcardException(result);
+            }
+
             var card = MultiStringToArray(cards);
-            System.Diagnostics.Debug.Print(result.ToString());
-
-            var provider = new StringBuilder();
-            uint len = 256;
-            provider.EnsureCapacity(256);
-            result = SmartcardInterop.SCardGetCardTypeProviderNameW(IntPtr.Zero, card[0], SmartcardInterop.Provider.Csp, provider, out len);
-
-            var container = @"\\.\" + scardstate[0].reader + @"\";
-            IntPtr cctx;
-            var success = SmartcardInterop.CryptAcquireContextW(out cctx, container, provider.ToString(), SmartcardInterop.CryptoProvider.RsaFull, 0);
-
-            uint buflen = 1024;
-            var buffer = new byte[buflen];
-
-            var containers = new List<string>();
-
-            success = SmartcardInterop.CryptGetProvParam(cctx, SmartcardInterop.ProviderParamGet.EnumContainters, buffer, out buflen, SmartcardInterop.ProviderParamFlags.CryptFirst);
-            while (success)
+            if (card.Count == 0)
             {
-                containers.Add(Encoding.ASCII.GetString(buffer, 0, Convert.ToInt32(buflen)));
-                success = SmartcardInterop.CryptGetProvParam(cctx, SmartcardInterop.ProviderParamGet.EnumContainters, buffer, out buflen, SmartcardInterop.ProviderParamFlags.CryptNext);
+                throw new SmartcardException(SmartcardException.SCardECardUnsupported);
             }
 
-            foreach (var ct in containers)
+            if (card.Count > 1)
             {
-                var containerPath = container + ct;
-
-                IntPtr ctx;
-                success = SmartcardInterop.CryptAcquireContextW(out ctx, containerPath, provider.ToString(), SmartcardInterop.CryptoProvider.RsaFull, 0);
-
-                IntPtr keyctx;
-                success = SmartcardInterop.CryptGetUserKey(ctx, SmartcardInterop.KeyFlags.AtKeyExchange, out keyctx);
-
-                uint certLen;
-                success = SmartcardInterop.CryptGetKeyParam(keyctx, SmartcardInterop.KeyParam.KpCertificate, null, out certLen, 0);
-
-                var cert = new byte[certLen];
-                success = SmartcardInterop.CryptGetKeyParam(keyctx, SmartcardInterop.KeyParam.KpCertificate, cert, out certLen, 0);
-
-                var x509 = new System.Security.Cryptography.X509Certificates.X509Certificate2(cert);
-                System.Diagnostics.Debug.Print(x509.Subject);
-
-                SmartcardInterop.CryptDestroyKey(keyctx);
-                SmartcardInterop.CryptReleaseContext(ctx,0);
+                throw new SmartcardException(SmartcardException.SCardEUnexpected);
             }
 
-            SmartcardInterop.CryptReleaseContext(cctx, 0);
-            SmartcardInterop.SCardReleaseContext(context);
+            return card[0];
         }
 
         private static IList<string> MultiStringToArray(char[] multistring)
@@ -179,5 +251,33 @@ findcards:
 
             return sb.ToString();
         }
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                }
+
+                if (this.context != IntPtr.Zero)
+                {
+                    SmartcardInterop.SCardReleaseContext(this.context);
+                }
+                
+                disposedValue = true;
+            }
+        }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+        #endregion
     }
 }
