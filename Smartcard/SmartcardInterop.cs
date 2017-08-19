@@ -112,6 +112,82 @@ namespace Smartcard
             RsaAes = 24
         }
 
+        // CryptoAPI PP_xxx constants for CryptoGetParam
+        public enum ProviderParamGet : uint
+        {
+            AdminPin = 0x1F,
+            AppliCert = 0x12,
+            ChangePassword = 0x07,
+            CertChain = 0x09,
+            Container = 0x06,
+            CryptCountKeyUse = 0x29,
+            EnumAlgs = 0x01,
+            EnumAlgsEx = 0x16,
+            EnumContainters = 0x02,
+            EnumElectRoots = 0x1A,
+            EnumExSigningProt = 0x28,
+            EnumMandRoots = 0x19,
+            ImpType = 0x03,
+            KeyTypeSubtype = 0x0A,
+            KeyExchangePin = 0x20,
+            KeysetSecDescr = 0x08,
+            KeysetType = 0x1B,
+            KeySpec = 0x27,
+            KeyxKeysizeInc = 0x23,
+            Name = 0x04,
+            ProvType = 0x10,
+            RootCertStore = 0x2E,
+            SessionKeySize = 0x14,
+            SgcInfo = 0x25,
+            SigKeysizeInc = 0x22,
+            SignaturePin = 0x21,
+            SmartcardGuid = 0x2D,
+            SmartcardReader = 0x2B,
+            SymKeysize = 0x13,
+            UiPrompt = 0x15,
+            UniqueContainer = 0x24,
+            UseHardwareRng = 0x26,
+            UserCertStore = 0x2A,
+            Version = 0x05
+        }
+
+        public enum ProviderParamSet : uint
+        {
+            ClientHwnd = 0x01,
+            DeleteKey = 0x18,
+            KeyExchangePin = 0x20,
+            KeysetSecDescr = 0x08,
+            PinPromptString = 0x2C,
+            RootCertStore = 0x2E,
+            SignaturePin = 0x21,
+            UiPrompt = 0x15,
+            UseHardwareRng = 0x26,
+            UserCertStore = 0x2A,
+            SecureKeyExchangePin = 0x2F,
+            SecureSignaturePin = 0x30,
+            SmartcardReader = 0x2B,
+            SmartcardGuid = 0x2D
+        }
+
+        public enum KeyFlags : uint
+        {
+            AtKeyExchange = 1,
+            AtSignature = 2
+        }
+
+        public enum KeyParam : uint
+        {
+            KpCertificate = 26
+        }
+
+        [Flags]
+        public enum ProviderParamFlags : uint
+        {
+            CryptFirst = 0x01,
+            CryptNext = 0x02,
+            CryptSgcEnum = 0x04,
+        }
+        
         [Flags]
         public enum CryptoFlags : uint
         {
@@ -180,10 +256,25 @@ namespace Smartcard
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
         public extern static int SCardGetCardTypeProviderNameW(IntPtr context, string cardname, [MarshalAs(UnmanagedType.U4)] Provider providerId, StringBuilder provider, out uint providerLength);
 
-        [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public extern static bool CryptAcquireContextW(out IntPtr context, string container, string provider, [MarshalAs(UnmanagedType.U4)] CryptoProvider provType, uint flags);
 
-        [DllImport("advapi32.dll")]
-        public extern static bool CryptReleaseContext(IntPtr content, uint flags);
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public extern static bool CryptReleaseContext(IntPtr context, uint flags);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public extern static bool CryptSetProvParam(IntPtr context, [MarshalAs(UnmanagedType.U4)] ProviderParamSet param, byte[] data, [MarshalAs(UnmanagedType.U4)] ProviderParamFlags flags);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public extern static bool CryptGetProvParam(IntPtr context, [MarshalAs(UnmanagedType.U4)] ProviderParamGet param, byte[] data, out uint datalen, [MarshalAs(UnmanagedType.U4)] ProviderParamFlags flags);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public extern static bool CryptGetUserKey(IntPtr context, [MarshalAs(UnmanagedType.U4)] KeyFlags keySpec, out IntPtr keyContext);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public extern static bool CryptDestroyKey(IntPtr keyContext);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public extern static bool CryptGetKeyParam(IntPtr keyContext, [MarshalAs(UnmanagedType.U4)] KeyParam param, byte[] data, out uint datalen, uint flags);
     }
 }

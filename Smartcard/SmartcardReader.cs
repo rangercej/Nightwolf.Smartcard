@@ -55,6 +55,41 @@ namespace Smartcard
             IntPtr cctx;
             var success = SmartcardInterop.CryptAcquireContextW(out cctx, container, provider.ToString(), SmartcardInterop.CryptoProvider.RsaFull, 0);
 
+            uint buflen = 1024;
+            var buffer = new byte[buflen];
+
+            var containers = new List<string>();
+
+            success = SmartcardInterop.CryptGetProvParam(cctx, SmartcardInterop.ProviderParamGet.EnumContainters, buffer, out buflen, SmartcardInterop.ProviderParamFlags.CryptFirst);
+            while (success)
+            {
+                containers.Add(Encoding.ASCII.GetString(buffer, 0, Convert.ToInt32(buflen)));
+                success = SmartcardInterop.CryptGetProvParam(cctx, SmartcardInterop.ProviderParamGet.EnumContainters, buffer, out buflen, SmartcardInterop.ProviderParamFlags.CryptNext);
+            }
+
+            foreach (var ct in containers)
+            {
+                var containerPath = container + ct;
+
+                IntPtr ctx;
+                success = SmartcardInterop.CryptAcquireContextW(out ctx, containerPath, provider.ToString(), SmartcardInterop.CryptoProvider.RsaFull, 0);
+
+                IntPtr keyctx;
+                success = SmartcardInterop.CryptGetUserKey(ctx, SmartcardInterop.KeyFlags.AtKeyExchange, out keyctx);
+
+                uint certLen;
+                success = SmartcardInterop.CryptGetKeyParam(keyctx, SmartcardInterop.KeyParam.KpCertificate, null, out certLen, 0);
+
+                var cert = new byte[certLen];
+                success = SmartcardInterop.CryptGetKeyParam(keyctx, SmartcardInterop.KeyParam.KpCertificate, cert, out certLen, 0);
+
+                var x509 = new System.Security.Cryptography.X509Certificates.X509Certificate2(cert);
+                System.Diagnostics.Debug.Print(x509.Subject);
+
+                SmartcardInterop.CryptDestroyKey(keyctx);
+                SmartcardInterop.CryptReleaseContext(ctx,0);
+            }
+
             SmartcardInterop.CryptReleaseContext(cctx, 0);
             SmartcardInterop.SCardReleaseContext(context);
         }
