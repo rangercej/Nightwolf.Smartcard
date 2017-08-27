@@ -144,7 +144,8 @@ namespace Smartcard
             Exclusive = 0x80,
             InUse = 0x100,
             Mute = 0x200,
-            Unpowered = 0x400
+            Unpowered = 0x400,
+            ReservedFlag = 0x10000
         }
 
         public struct SCardGuid

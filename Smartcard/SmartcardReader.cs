@@ -13,10 +13,10 @@ namespace Smartcard
 
         IntPtr context = IntPtr.Zero;
 
-        private IList<string> ReaderNames = new List<string>();
-        private IList<string> CardNames = new List<string>();
+        private List<string> ReaderNames = new List<string>();
+        private List<string> CardNames = new List<string>();
 
-        private IList<SmartcardInterop.ScardReaderState> currentState = null;
+        private List<SmartcardInterop.ScardReaderState> CurrentState = null;
 
         public SmartcardReader()
         {
@@ -25,9 +25,9 @@ namespace Smartcard
 
         public void StartMonitoring()
         {
-            if (currentState != null)
+            if (CurrentState != null)
             {
-                var readersWithCards = currentState.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0);
+                var readersWithCards = CurrentState.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0);
                 foreach (var reader in readersWithCards)
                 {
                     FireCardPresentEvent(reader);
@@ -50,9 +50,9 @@ namespace Smartcard
                 throw new SmartcardException(result);
             }
 
-            RefreshCards();
-            RefreshReaders();
-            RefreshState();
+            this.CardNames = FetchCards();
+            this.ReaderNames = FetchReaders();
+            this.CurrentState = FetchState(this.ReaderNames);
         }
 
         private void FireCardPresentEvent(SmartcardInterop.ScardReaderState state)
@@ -71,7 +71,7 @@ namespace Smartcard
             OnCardRemoved(this, args);
         }
 
-        private void RefreshReaders()
+        private List<string> FetchReaders()
         {
             uint readerLen = 1024;
             var readers = new char[1024];
@@ -83,10 +83,10 @@ namespace Smartcard
             }
 
             var r = MultiStringToArray(readers);
-            this.ReaderNames = r.ToList();
+            return r.ToList();
         }
 
-        private void RefreshCards()
+        private List<string> FetchCards()
         {
             uint cardLen = 16384;
             var cards = new char[cardLen];
@@ -98,31 +98,42 @@ namespace Smartcard
             }
 
             var c = MultiStringToArray(cards);
-            this.CardNames = c.ToList();
+            return c.ToList();
         }
 
-        private void RefreshState()
+        private List<SmartcardInterop.ScardReaderState> FetchState(IList<string> readerNames)
         {
-            IList<SmartcardInterop.ScardReaderState> scardstatelist;
-            if (this.currentState == null || this.ReaderNames.Count == 0)
+            IList<SmartcardInterop.ScardReaderState> scardstatelist = null;
+
+            if (this.CurrentState == null)
             {
-                scardstatelist = CreatePendingReaderState();
-            }
-            else
-            {
-                scardstatelist = this.currentState;
+                this.CurrentState = new List<SmartcardInterop.ScardReaderState>();
             }
 
-            foreach (var reader in this.ReaderNames)
+            var state = this.CurrentState.Where(x => readerNames.Contains(x.reader)).ToList();
+            if (state == null || state.Count == 0)
+            { 
+                scardstatelist = CreatePendingReaderState(readerNames);
+            }
+
+            if (scardstatelist == null)
             {
-                if (!scardstatelist.Any(x => x.reader.Equals(reader)))
+                return null;
+            }
+
+            if (readerNames.Count != scardstatelist.Count)
+            {
+                foreach (var reader in readerNames)
                 {
-                    scardstatelist.Add(CreatePendingReaderState(reader));
+                    if (!scardstatelist.Any(x => x.reader.Equals(reader)))
+                    {
+                        scardstatelist.Add(CreatePendingReaderState(reader));
+                    }
                 }
             }
 
             SmartcardInterop.ScardReaderState[] scardstate = scardstatelist.ToArray();
-            if (this.ReaderNames.Count > 0)
+            if (readerNames.Count > 0)
             {
                 var d = ArrayToMultiString(this.CardNames);
 
@@ -133,51 +144,55 @@ namespace Smartcard
                 }
             }
 
-            this.currentState = scardstate.ToList();
+            return scardstate.ToList();
         }
 
-        private void SaveState()
+        private void SaveState(List<SmartcardInterop.ScardReaderState> newState)
         {
-            for (var i = 0; i < this.currentState.Count; i++)
+            this.CurrentState.Clear();
+            foreach (var state in newState)
             {
-                var x = this.currentState[i];
-                x.currentState = x.eventState & (SmartcardInterop.State.Present | SmartcardInterop.State.Empty);
-                this.currentState[i] = x;
+                var s = state;
+                s.currentState = s.eventState;
+                s.eventState = 0;
+                this.CurrentState.Add(s);
             }
         }
 
         private void WaitForReaderStateChange()
         {
+            const string NotificationReader = @"\\?PnP?\Notification";
+            var state = new SmartcardInterop.ScardReaderState
+            {
+                reader = NotificationReader,
+                currentState = 0,
+                eventState = 0,
+                atrLength = 0
+            };
+
+            this.CurrentState.Add(state);
+
             int i = 0;
+            uint result = 0;
             while (true)
             {
                 i++;
-                System.Diagnostics.Debug.Print("StateChange - start: " + i.ToString());
-                var scardstatelist = this.currentState.ToList();
+                System.Diagnostics.Debug.Print("StateChange - start: " + i.ToString() + "; last status = 0x" + result.ToString("X"));
                 SmartcardInterop.ScardReaderState[] scardstate = null;
 
-                const string NotificationReader = @"\\?PnP?\Notification";
-                var state = new SmartcardInterop.ScardReaderState
-                {
-                    reader = NotificationReader,
-                    currentState = 0,
-                    eventState = 0,
-                    atrLength = 0
-                };
-
-                scardstatelist.Add(state);
-
-                scardstate = scardstatelist.ToArray();
-                var result = SmartcardInterop.SCardGetStatusChange(context, 2000, scardstate, Convert.ToUInt32(scardstate.Length));
+                scardstate = this.CurrentState.ToArray();
+                result = SmartcardInterop.SCardGetStatusChange(context, 2000, scardstate, Convert.ToUInt32(scardstate.Length));
                 if (result == SmartcardException.SCardETimeout)
                 {
                     continue;
                 }
 
+                var scardstatelist = scardstate.ToList();
+
                 // EServiceStopped thrown if last reader removed from machine.
-                if (result == SmartcardException.SCardEServiceStopped)
+                if (result == SmartcardException.SCardEServiceStopped || result == SmartcardException.SCardENoService)
                 {
-                    var removedReader = scardstate.Where(x => x.reader != NotificationReader);
+                    var removedReader = scardstatelist.Where(x => x.reader != NotificationReader);
                     foreach (var reader in removedReader)
                     {
                         FireCardRemovedEvent(reader);
@@ -190,10 +205,11 @@ namespace Smartcard
 
                 if (result != SmartcardException.SCardSuccess)
                 {
+                    System.Diagnostics.Debug.Print("Exception happened: " + result);
                     throw new SmartcardException(result);
                 }
 
-                var scardChanges = scardstate.Where(x => (x.eventState & SmartcardInterop.State.Changed) != 0).ToList();
+                var scardChanges = scardstatelist.Where(x => (x.eventState & SmartcardInterop.State.Changed) != 0).ToList();
                 if (scardChanges.Count == 0)
                 {
                     continue;
@@ -201,12 +217,16 @@ namespace Smartcard
 
                 if (scardChanges.Any(x => x.reader == NotificationReader))
                 {
-                    RefreshReaders();
+                    var readers = FetchReaders();
+                    var newReaders = readers.Where(x => !this.ReaderNames.Contains(x)).ToList();
+                    var newReaderState = FetchState(newReaders);
+
+                    this.ReaderNames.AddRange(newReaders);
+                    scardChanges.AddRange(newReaderState);
+                    scardstatelist.AddRange(newReaderState);
                 }
 
-                RefreshState();
-
-                var readersWithCards = currentState.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0);
+                var readersWithCards = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0).ToList();
                 foreach (var reader in readersWithCards)
                 {
                     if (scardChanges.Any(x => x.reader == reader.reader))
@@ -215,7 +235,7 @@ namespace Smartcard
                     }
                 }
 
-                var readersWithoutCards = currentState.Where(x => (x.eventState & SmartcardInterop.State.Empty) != 0);
+                var readersWithoutCards = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Empty) != 0).ToList();
                 foreach (var reader in readersWithoutCards)
                 {
                     if (scardChanges.Any(x => x.reader == reader.reader))
@@ -227,15 +247,15 @@ namespace Smartcard
                     }
                 }
 
-                SaveState();
+                SaveState(scardstatelist);
             }
         }
 
-        private IList<SmartcardInterop.ScardReaderState> CreatePendingReaderState()
+        private IList<SmartcardInterop.ScardReaderState> CreatePendingReaderState(IList<string> readerNames)
         {
             var scardstatelist = new List<SmartcardInterop.ScardReaderState>();
 
-            foreach (var reader in this.ReaderNames)
+            foreach (var reader in readerNames)
             {
                 var state = CreatePendingReaderState(reader);
                 scardstatelist.Add(state);
