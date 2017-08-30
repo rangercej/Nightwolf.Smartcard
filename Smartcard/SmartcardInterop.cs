@@ -4,6 +4,9 @@ using System.Runtime.InteropServices;
 
 namespace Smartcard
 {
+    /// <summary>
+    /// This class contains C# versions of method calls, structures and constants from winscard.h and wincrypt.h.
+    /// </summary>
     public static class SmartcardInterop
     {
         public enum Scope : uint
@@ -148,6 +151,8 @@ namespace Smartcard
             ReservedFlag = 0x10000
         }
 
+        public const uint Infinite = 0xFFFFFFFF;
+
         public struct SCardGuid
         {
             uint Data1;
@@ -175,6 +180,9 @@ namespace Smartcard
 
         [DllImport("winscard.dll")]
         public extern static uint SCardReleaseContext(IntPtr context);
+
+        [DllImport("winscard.dll")]
+        public extern static uint SCardCancel(IntPtr context);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
         public extern static uint SCardListReadersW(IntPtr context, string groups, char[] readers, out uint readersLength);

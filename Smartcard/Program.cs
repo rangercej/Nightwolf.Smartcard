@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Smartcard
@@ -14,7 +15,9 @@ namespace Smartcard
             x.OnCardInserted += CardInserted;
             x.OnCardRemoved += CardRemoved;
 
-            x.StartMonitoring();
+            var cts = new CancellationTokenSource();
+
+            x.StartMonitoring(cts.Token);
 
             Console.ReadLine();
         }

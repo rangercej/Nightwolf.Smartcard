@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Smartcard
 {
-    public class Smartcard : IDisposable
+    public sealed class Smartcard : IDisposable
     {
         List<SmartcardCertificate> certificates = new List<SmartcardCertificate>();
 
@@ -74,7 +74,7 @@ namespace Smartcard
         #region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls
 
-        protected virtual void Dispose(bool disposing)
+        public void Dispose(bool disposing)
         {
             if (!disposedValue)
             {

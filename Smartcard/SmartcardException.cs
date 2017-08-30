@@ -2,7 +2,7 @@
 
 namespace Smartcard
 {
-    public class SmartcardException : Exception
+    public sealed class SmartcardException : Exception
     {
         // Error codes
         public const uint SCardSuccess = 0;

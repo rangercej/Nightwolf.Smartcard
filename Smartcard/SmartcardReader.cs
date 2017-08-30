@@ -2,29 +2,48 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Smartcard
 {
-    public class SmartcardReader : IDisposable
+    public sealed class SmartcardReader : IDisposable
     {
         public event EventHandler OnCardInserted;
         public event EventHandler OnCardRemoved;
 
-        IntPtr context = IntPtr.Zero;
+        private IntPtr context = IntPtr.Zero;
 
         private List<string> ReaderNames = new List<string>();
         private List<string> CardNames = new List<string>();
 
         private List<SmartcardInterop.ScardReaderState> CurrentState = null;
 
+        private Task monitorTask;
+        private CancellationToken cancelToken;
+
+        private bool disposedValue = false; // To detect redundant calls
+
+        /// <summary>
+        /// Instantiate the smartcard reader class
+        /// </summary>
         public SmartcardReader()
         {
+            this.monitorTask = null;
             ResetContext();
         }
 
-        public void StartMonitoring()
+        /// <summary>
+        /// Start monitoring for smartcard changes
+        /// </summary>
+        /// <param name="ct">Cancellation token to stop monitoring</param>
+        public void StartMonitoring(CancellationToken ct)
         {
+            if (this.monitorTask != null)
+            {
+                return;
+            }
+
             if (CurrentState != null)
             {
                 var readersWithCards = CurrentState.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0);
@@ -34,9 +53,28 @@ namespace Smartcard
                 }
             }
 
-            Task.Factory.StartNew(WaitForReaderStateChange);
+            this.cancelToken.Register(StopMonitoring);
+            this.monitorTask = Task.Factory.StartNew(WaitForReaderStateChange);
         }
 
+        /// <summary>
+        /// Stop the smartcard monitor
+        /// </summary>
+        private void StopMonitoring()
+        {
+            if (this.monitorTask == null)
+            {
+                return;
+            }
+
+            SmartcardInterop.SCardCancel(this.context);
+            this.monitorTask.Wait();
+            this.monitorTask = null;
+        }
+
+        /// <summary>
+        /// Create a new smartcard tracking context
+        /// </summary>
         private void ResetContext()
         {
             if (this.context != IntPtr.Zero)
@@ -55,6 +93,10 @@ namespace Smartcard
             this.CurrentState = FetchState(this.ReaderNames);
         }
 
+        /// <summary>
+        /// Call the card detected delegate for each changed reader
+        /// </summary>
+        /// <param name="state">State class containing the smartcard reader name</param>
         private void FireCardPresentEvent(SmartcardInterop.ScardReaderState state)
         {
             var cardname = FindCardWithAtr(state.atr);
@@ -64,6 +106,10 @@ namespace Smartcard
             OnCardInserted(this, args);
         }
 
+        /// <summary>
+        /// Call the card removed delegate for each changed reader
+        /// </summary>
+        /// <param name="state">State class containing the smartcard reader name</param>
         private void FireCardRemovedEvent(SmartcardInterop.ScardReaderState state)
         {
             var args = new SmartcardEventArgs(null, state.reader);
@@ -71,6 +117,10 @@ namespace Smartcard
             OnCardRemoved(this, args);
         }
 
+        /// <summary>
+        /// Find all attached smartcard readers
+        /// </summary>
+        /// <returns>List of attached readers</returns>
         private List<string> FetchReaders()
         {
             uint readerLen = 1024;
@@ -86,6 +136,10 @@ namespace Smartcard
             return r.ToList();
         }
 
+        /// <summary>
+        /// Find all supported smartcard types
+        /// </summary>
+        /// <returns>List of supported card types</returns>
         private List<string> FetchCards()
         {
             uint cardLen = 16384;
@@ -101,6 +155,10 @@ namespace Smartcard
             return c.ToList();
         }
 
+        /// <summary>
+        /// Fetch the state of named smartcard readers
+        /// </summary>
+        /// <returns>List of readers for which to fetch state</returns>
         private List<SmartcardInterop.ScardReaderState> FetchState(IList<string> readerNames)
         {
             IList<SmartcardInterop.ScardReaderState> scardstatelist = null;
@@ -147,6 +205,10 @@ namespace Smartcard
             return scardstate.ToList();
         }
 
+        /// <summary>
+        /// Update cached current state for each reader with the latest obtained state.
+        /// </summary>
+        /// <param name="newState">List of states to update</param>
         private void SaveState(List<SmartcardInterop.ScardReaderState> newState)
         {
             this.CurrentState.Clear();
@@ -159,6 +221,9 @@ namespace Smartcard
             }
         }
 
+        /// <summary>
+        /// Monitor for smartcard change events and fire events on detected changes
+        /// </summary>
         private void WaitForReaderStateChange()
         {
             const string NotificationReader = @"\\?PnP?\Notification";
@@ -174,14 +239,19 @@ namespace Smartcard
 
             int i = 0;
             uint result = 0;
-            while (true)
+            while (!this.cancelToken.IsCancellationRequested)
             {
                 i++;
                 System.Diagnostics.Debug.Print("StateChange - start: " + i.ToString() + "; last status = 0x" + result.ToString("X"));
                 SmartcardInterop.ScardReaderState[] scardstate = null;
 
                 scardstate = this.CurrentState.ToArray();
-                result = SmartcardInterop.SCardGetStatusChange(context, 2000, scardstate, Convert.ToUInt32(scardstate.Length));
+                result = SmartcardInterop.SCardGetStatusChange(context, SmartcardInterop.Infinite, scardstate, Convert.ToUInt32(scardstate.Length));
+                if (this.cancelToken.IsCancellationRequested || result == SmartcardException.SCardECancelled)
+                {
+                    return;
+                }
+
                 if (result == SmartcardException.SCardETimeout)
                 {
                     continue;
@@ -251,6 +321,14 @@ namespace Smartcard
             }
         }
 
+        /// <summary>
+        /// Create an unknown state list for named readers
+        /// </summary>
+        /// <remarks>
+        /// Sets the currentState and eventState to 'Unaware' for each reader
+        /// </remarks>
+        /// <param name="readerNames">List of reader names for which to create initial state</param>
+        /// <returns>List of unknown reader states</returns>
         private IList<SmartcardInterop.ScardReaderState> CreatePendingReaderState(IList<string> readerNames)
         {
             var scardstatelist = new List<SmartcardInterop.ScardReaderState>();
@@ -264,6 +342,14 @@ namespace Smartcard
             return scardstatelist;
         }
 
+        /// <summary>
+        /// Create an unknown state list for a named reader
+        /// </summary>
+        /// <remarks>
+        /// Sets the currentState and eventState to 'Unaware' for the reader
+        /// </remarks>
+        /// <param name="readerNames">Reader name for which to create initial state</param>
+        /// <returns>List of unknown reader states</returns>
         private SmartcardInterop.ScardReaderState CreatePendingReaderState (string readerName)
         {
             var state = new SmartcardInterop.ScardReaderState
@@ -277,6 +363,11 @@ namespace Smartcard
             return state;
         }
 
+        /// <summary>
+        /// Locate the smartcard type with the identified ATR bytes
+        /// </summary>
+        /// <param name="atr">ATR byte array</param>
+        /// <returns>Cardname matching the ATR</returns>
         private string FindCardWithAtr(byte[] atr)
         {
             uint cardLen = 1024;
@@ -301,6 +392,11 @@ namespace Smartcard
             return card[0];
         }
 
+        /// <summary>
+        /// Convert a C-style null seperated, double-null terminated string to a c# list of strings
+        /// </summary>
+        /// <param name="multistring">C-style multistring to convert</param>
+        /// <returns>List of strings obtained from the multistring</returns>
         private static IList<string> MultiStringToArray(char[] multistring)
         {
             List<string> stringList = new List<string>();
@@ -327,6 +423,11 @@ namespace Smartcard
             return stringList;
         }
 
+        /// <summary>
+        /// Convert a list of strings to a C-style null-seperated, double-null terminated string
+        /// </summary>
+        /// <param name="stringlist">List of strings to convert</param>
+        /// <returns>C-style multistring</returns>
         private static string ArrayToMultiString(IList<string> stringlist)
         {
             var sb = new StringBuilder();
@@ -346,8 +447,10 @@ namespace Smartcard
         }
 
         #region IDisposable Support
-        private bool disposedValue = false; // To detect redundant calls
-
+        /// <summary>
+        /// Free unmanaged resources
+        /// </summary>
+        /// <param name="disposing">Called from Dispose() flag</param>
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -366,7 +469,9 @@ namespace Smartcard
             }
         }
 
-        // This code added to correctly implement the disposable pattern.
+        /// <summary>
+        /// Free unmanaged resources
+        /// </summary>
         public void Dispose()
         {
             Dispose(true);
