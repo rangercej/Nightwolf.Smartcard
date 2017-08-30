@@ -242,7 +242,7 @@ namespace Smartcard
             while (!this.cancelToken.IsCancellationRequested)
             {
                 i++;
-                System.Diagnostics.Debug.Print("StateChange - start: " + i.ToString() + "; last status = 0x" + result.ToString("X"));
+                System.Diagnostics.Debug.Print(DateTime.Now.ToString() + ": StateChange - start: " + i.ToString() + "; last status = 0x" + result.ToString("X"));
                 SmartcardInterop.ScardReaderState[] scardstate = null;
 
                 scardstate = this.CurrentState.ToArray();
@@ -285,6 +285,8 @@ namespace Smartcard
                     continue;
                 }
 
+                this.DumpState(scardChanges);
+
                 if (scardChanges.Any(x => x.reader == NotificationReader))
                 {
                     var readers = FetchReaders();
@@ -296,7 +298,7 @@ namespace Smartcard
                     scardstatelist.AddRange(newReaderState);
                 }
 
-                var readersWithCards = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0).ToList();
+                var readersWithCards = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0 && (x.currentState & SmartcardInterop.State.Present) == 0).ToList();
                 foreach (var reader in readersWithCards)
                 {
                     if (scardChanges.Any(x => x.reader == reader.reader))
@@ -305,7 +307,7 @@ namespace Smartcard
                     }
                 }
 
-                var readersWithoutCards = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Empty) != 0).ToList();
+                var readersWithoutCards = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Present) == 0 && (x.currentState & SmartcardInterop.State.Present) != 0).ToList();
                 foreach (var reader in readersWithoutCards)
                 {
                     if (scardChanges.Any(x => x.reader == reader.reader))
@@ -393,6 +395,18 @@ namespace Smartcard
         }
 
         /// <summary>
+        /// Dump a list of states to the debug console
+        /// </summary>
+        /// <param name="states">States to dump</param>
+        private void DumpState(List<SmartcardInterop.ScardReaderState> states)
+        {
+            foreach (var s in states)
+            {
+                System.Diagnostics.Debug.Print(s.reader + ": " + s.currentState.ToString() + " => " + s.eventState.ToString());
+            }
+        }
+
+        /// <summary>
         /// Convert a C-style null seperated, double-null terminated string to a c# list of strings
         /// </summary>
         /// <param name="multistring">C-style multistring to convert</param>
@@ -451,7 +465,7 @@ namespace Smartcard
         /// Free unmanaged resources
         /// </summary>
         /// <param name="disposing">Called from Dispose() flag</param>
-        protected virtual void Dispose(bool disposing)
+        public void Dispose(bool disposing)
         {
             if (!disposedValue)
             {
