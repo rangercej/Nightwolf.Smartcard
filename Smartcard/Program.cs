@@ -14,6 +14,9 @@ namespace Smartcard
             var cts = new CancellationTokenSource();
 
             x.StartMonitoring(cts.Token);
+            Thread.Sleep(10000);
+            Console.WriteLine("Stopping");
+            cts.Cancel();
 
             Console.ReadLine();
         }

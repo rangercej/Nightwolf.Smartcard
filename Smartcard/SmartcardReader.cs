@@ -32,7 +32,16 @@ namespace Smartcard
         public SmartcardReader()
         {
             this.monitorTask = null;
+            this.IsMonitoring = false;
             ResetContext();
+        }
+
+        /// <summary>
+        /// Flag that allows consumers to determine if monitoring is active or not
+        /// </summary>
+        public bool IsMonitoring
+        {
+            get; private set;
         }
 
         /// <summary>
@@ -55,8 +64,11 @@ namespace Smartcard
                 }
             }
 
+            this.cancelToken = ct;
+
             this.cancelToken.Register(StopMonitoring);
             this.monitorTask = Task.Factory.StartNew(WaitForReaderStateChange);
+            this.IsMonitoring = true;
         }
 
         /// <summary>
@@ -64,14 +76,18 @@ namespace Smartcard
         /// </summary>
         private void StopMonitoring()
         {
+            System.Diagnostics.Debug.Print("Stopping monitoring");
+
             if (this.monitorTask == null)
             {
                 return;
             }
 
+            System.Diagnostics.Debug.Print("Cancelling requests");
             SmartcardInterop.SCardCancel(this.context);
             this.monitorTask.Wait();
             this.monitorTask = null;
+            this.IsMonitoring = false;
         }
 
         /// <summary>
@@ -255,7 +271,8 @@ namespace Smartcard
                     result = SmartcardInterop.SCardGetStatusChange(context, SmartcardInterop.Infinite, scardstate, Convert.ToUInt32(scardstate.Length));
                     if (this.cancelToken.IsCancellationRequested || result == SmartcardException.SCardECancelled)
                     {
-                        return;
+                        System.Diagnostics.Debug.Print("Cancellation requested");
+                        break;
                     }
 
                     if (result == SmartcardException.SCardETimeout)
@@ -266,30 +283,26 @@ namespace Smartcard
                     System.Diagnostics.Debug.Print(DateTime.Now.ToString() + ": StateChange - result: 0x" + result.ToString("X"));
                     var scardstatelist = scardstate.ToList();
 
-                    // EServiceStopped thrown if last reader removed from machine.
-                    if (result == SmartcardException.SCardEServiceStopped || result == SmartcardException.SCardENoService)
+                    // If the service has stopped, then we need to flag all existing cards as removed
+                    if (this.HandleStoppedService(scardstatelist, result))
                     {
-                        var removedReader = scardstatelist.Where(x => x.reader != NotificationReader);
-                        foreach (var reader in removedReader)
-                        {
-                            FireCardRemovedEvent(reader);
-                        }
-
                         // Need to reset the smartcard context
                         ResetContext();
                         continue;
                     }
 
-                    var scardChanges = scardstatelist.Where(x => (x.eventState & SmartcardInterop.State.Changed) != 0).ToList();
-                    if (scardChanges.Count == 0)
-                    {
-                        continue;
-                    }
-
+                    // All other errors, throw an exception
                     if (result != SmartcardException.SCardSuccess)
                     {
                         System.Diagnostics.Debug.Print("Exception happened: " + result);
                         throw new SmartcardException(result);
+                    }
+
+                    // Now deal with the actual smartcard changes
+                    var scardChanges = scardstatelist.Where(x => (x.eventState & SmartcardInterop.State.Changed) != 0).ToList();
+                    if (scardChanges.Count == 0)
+                    {
+                        continue;
                     }
 
                     this.DumpState(scardChanges);
@@ -313,6 +326,8 @@ namespace Smartcard
                     }
                 }
             }
+
+            System.Diagnostics.Debug.Print("Monitoring stopped.");
         }
 
         /// <summary>
@@ -320,8 +335,35 @@ namespace Smartcard
         /// </summary>
         /// <param name="scardChanges">Smartcard status change list</param>
         /// <param name="fetchStatusResult">Result of last status fetch</param>
-        private void HandleRemovedReaders(List<SmartcardInterop.ScardReaderState> scardChanges, uint fetchStatusResult)
+        /// <returns>True if handler had events to process, false otherwise</returns>
+        private bool HandleStoppedService(List<SmartcardInterop.ScardReaderState> scardState, uint fetchStatusResult)
         {
+            bool processedEvents = false;
+
+            if (fetchStatusResult == SmartcardException.SCardEServiceStopped || fetchStatusResult == SmartcardException.SCardENoService)
+            {
+                var removedReader = scardState.Where(x => x.reader != NotificationReader);
+                foreach (var reader in removedReader.Where(x => (x.currentState & SmartcardInterop.State.Present) != 0))
+                {
+                    FireCardRemovedEvent(reader);
+                }
+
+                processedEvents = true;
+            }
+
+            return processedEvents;
+        }
+
+        /// <summary>
+        /// Determine which readers have been removed and fire card removed events for those readers
+        /// </summary>
+        /// <param name="scardChanges">Smartcard status change list</param>
+        /// <param name="fetchStatusResult">Result of last status fetch</param>
+        /// <returns>True if handler had events to process, false otherwise</returns>
+        private bool HandleRemovedReaders(List<SmartcardInterop.ScardReaderState> scardChanges, uint fetchStatusResult)
+        {
+            bool processedEvents = false;
+
             var unavailableReaders = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Unavailable) == 0 && (x.currentState & SmartcardInterop.State.Unavailable) != 0).ToList();
             foreach (var reader in unavailableReaders)
             {
@@ -330,9 +372,12 @@ namespace Smartcard
                     if (reader.currentState != SmartcardInterop.State.Unaware)
                     {
                         FireCardRemovedEvent(reader);
+                        processedEvents = true;
                     }
                 }
             }
+
+            return processedEvents;
         }
 
         /// <summary>
@@ -340,8 +385,11 @@ namespace Smartcard
         /// </summary>
         /// <param name="scardChanges">Smartcard status change list</param>
         /// <param name="fetchStatusResult">Result of last status fetch</param>
-        private void HandleRemovedCards(List<SmartcardInterop.ScardReaderState> scardChanges, uint fetchStatusResult)
+        /// <returns>True if handler had events to process, false otherwise</returns>
+        private bool HandleRemovedCards(List<SmartcardInterop.ScardReaderState> scardChanges, uint fetchStatusResult)
         {
+            bool processedEvents = false;
+
             var readersWithoutCards = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Present) == 0 && (x.currentState & SmartcardInterop.State.Present) != 0).ToList();
             foreach (var reader in readersWithoutCards)
             {
@@ -350,9 +398,12 @@ namespace Smartcard
                     if (reader.currentState != SmartcardInterop.State.Unaware)
                     {
                         FireCardRemovedEvent(reader);
+                        processedEvents = true;
                     }
                 }
             }
+
+            return processedEvents;
         }
 
         /// <summary>
@@ -360,8 +411,11 @@ namespace Smartcard
         /// </summary>
         /// <param name="scardChanges">Smartcard status change list</param>
         /// <param name="fetchStatusResult">Result of last status fetch</param>
-        private void HandleInsertedCards(ref List<SmartcardInterop.ScardReaderState> scardChanges, uint fetchStatusResult)
+        /// <returns>True if handler had events to process, false otherwise</returns>
+        private bool HandleInsertedCards(ref List<SmartcardInterop.ScardReaderState> scardChanges, uint fetchStatusResult)
         {
+            bool processedEvents = false;
+
             // Are any of the new cards due to new readers?
             if (scardChanges.Any(x => x.reader == NotificationReader))
             {
@@ -379,8 +433,11 @@ namespace Smartcard
                 if (scardChanges.Any(x => x.reader == reader.reader))
                 {
                     FireCardPresentEvent(reader);
+                    processedEvents = true;
                 }
             }
+
+            return processedEvents;
         }
 
         /// <summary>
