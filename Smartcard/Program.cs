@@ -7,27 +7,32 @@ namespace Smartcard
     {
         static void Main(string[] args)
         {
-            var x = new SmartcardReader();
-            x.OnCardInserted += CardInserted;
-            x.OnCardRemoved += CardRemoved;
+            using (var x = new SmartcardReader())
+            {
+                x.OnCardInserted += CardInserted;
+                x.OnCardRemoved += CardRemoved;
 
-            var cts = new CancellationTokenSource();
+                var cts = new CancellationTokenSource();
 
-            x.StartMonitoring(cts.Token);
-            Thread.Sleep(10000);
-            Console.WriteLine("Stopping");
-            cts.Cancel();
+                x.StartMonitoring(cts.Token);
+                Thread.Sleep(10000);
+                Console.WriteLine("Stopping");
+                cts.Cancel();
 
-            Console.ReadLine();
+                Console.ReadLine();
+            }
         }
 
         private static void CardInserted(object sender, EventArgs args)
         {
-            var scard = ((SmartcardEventArgs)args).SmartCard;
-
-            foreach (var cert in scard.Certificates)
+            using (var scard = ((SmartcardEventArgs)args).SmartCard)
             {
-                System.Console.WriteLine(cert.Certificate.Subject);
+                foreach (var cert in scard.CertificateStore.Certificates)
+                {
+                    System.Console.WriteLine(cert.Subject + ": " + cert.NotAfter);
+                }
+
+                scard.UnlockCard("4971");
             }
         }
 

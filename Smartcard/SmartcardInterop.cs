@@ -219,5 +219,8 @@ namespace Smartcard
 
         [DllImport("advapi32.dll", SetLastError = true)]
         public extern static bool CryptGetKeyParam(IntPtr keyContext, [MarshalAs(UnmanagedType.U4)] KeyParam param, byte[] data, out uint datalen, uint flags);
+
+        [DllImport("crypt32.dll", SetLastError = true)]
+        public extern static bool CertCloseStore(IntPtr storeHandle, uint flags);
     }
 }
