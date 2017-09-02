@@ -153,14 +153,6 @@ namespace Smartcard
 
         public const int Infinite = unchecked((int)0xFFFFFFFF);
 
-        public struct SCardGuid
-        {
-            int Data1;
-            ushort Data2;
-            ushort Data3;
-            ulong Data4;
-        }
-
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         public struct ScardReaderState
         {
