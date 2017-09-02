@@ -1,10 +1,10 @@
-﻿using System;
+﻿using System.ComponentModel;
 
 namespace Smartcard
 {
-    public sealed class SmartcardException : Exception
+    public sealed class SmartcardException : Win32Exception
     {
-        // Error codes
+        // Error codes from winscard.h
         public const uint SCardSuccess = 0;
         public const uint SCardFInternalError = 0x80100001;
         public const uint SCardECancelled = 0x80100002;
@@ -73,31 +73,81 @@ namespace Smartcard
         public const uint SCardWCacheItemStale = 0x80100071;
         public const uint SCardWCacheItemTooBig = 0x80100072;
 
+        // Crypto API errors from winerror.h
+        public const uint NteOpOk = 0;
+        public const uint NteBadUid = 0x80090001;
+        public const uint NteBadHash = 0x80090002;
+        public const uint NteBadKey = 0x80090003;
+        public const uint NteBadLen = 0x80090004;
+        public const uint NteBadData = 0x80090005;
+        public const uint NteBadSignature = 0x80090006;
+        public const uint NteBadVer = 0x80090007;
+        public const uint NteBadAlgId = 0x80090008;
+        public const uint NteBadFlags = 0x80090009;
+        public const uint NteBadType = 0x8009000A;
+        public const uint NteBadKeyState = 0x8009000B;
+        public const uint NteBadHashState = 0x8009000C;
+        public const uint NteNoKey = 0x8009000D;
+        public const uint NteNoMemory = 0x8009000E;
+        public const uint NteExists = 0x8009000F;
+        public const uint NtePerm = 0x80090010;
+        public const uint NteNotFound = 0x80090011;
+        public const uint NteDoubleEncrypt = 0x80090012;
+        public const uint NteBadProvider = 0x80090013;
+        public const uint NteBadProvType = 0x80090014;
+        public const uint NteBadPublicKey = 0x80090015;
+        public const uint NteBadKeyset = 0x80090016;
+        public const uint NteProvTypeNotDef = 0x80090017;
+        public const uint NteProvTypeEntryBad = 0x80090018;
+        public const uint NteKeysetNotDef = 0x80090019;
+        public const uint NteKeysetEntryBad = 0x8009001A;
+        public const uint NteProvTypeNoMatch = 0x8009001B;
+        public const uint NteSignatureFileBad = 0x8009001C;
+        public const uint NteProviderDllFail = 0x8009001D;
+        public const uint NteProvDllNotFound = 0x8009001E;
+        public const uint NteBadKeysetParam = 0x8009001F;
+        public const uint NteFail = 0x80090020;
+        public const uint NteSysErr = 0x80090021;
+        public const uint NteSilentContext = 0x80090022;
+        public const uint NteTokenKeysetStorageFull = 0x80090023;
+        public const uint NteTemporaryProfile = 0x80090024;
+        public const uint NteFixedParameter = 0x80090025;
+        public const uint NteInvalidHandle = 0x80090026;
+        public const uint NteInvalidParameter = 0x80090027;
+        public const uint NteBufferTooSmall = 0x80090028;
+        public const uint NteNotSupported = 0x80090029;
+        public const uint NteNoMoreItems = 0x8009002A;
+        public const uint NteBuffersOverlap = 0x8009002B;
+        public const uint NteDecryptionFailure = 0x8009002C;
+        public const uint NteInternalError = 0x8009002D;
+        public const uint NteUIRequired = 0x8009002E;
+        public const uint NteHmacNotSupported = 0x8009002F;
+        public const uint NteDeviceNotReady = 0x80090030;
+        public const uint NteAuthenticationIgnored = 0x80090031;
+        public const uint NteValidationFailed = 0x80090032;
+        public const uint NteIncorrectPassword = 0x80090033;
+        public const uint NteEncryptionFailure = 0x80090034;
+        public const uint NteDeviceNotFound = 0x80090035;
+        public const uint NteUserCancelled = 0x80090036;
+        public const uint NtePasswordChangeRequired = 0x80090037;
+
         private long status = 0;
         private string message = string.Empty;
 
-        public SmartcardException() : base() { }
+        public SmartcardException() : base() {}
 
-        public SmartcardException(uint result)
-        {
-            this.Status = result;
-        }
+        public SmartcardException(uint result) : base((int)result) {}
 
-        public SmartcardException(int result)
-        {
-            this.Status = result;
-        }
+        public SmartcardException(int result) : base(result) {}
 
         public new string Message
         {
-            get { return message; }
-            private set { message = value; }
-        }
+            get { return base.Message; }
+       }
 
-        public long Status
+        public uint Status
         {
-            get { return this.status; }
-            private set { this.status = value; }
+            get { return (uint)base.HResult; }
         }
     }
 }

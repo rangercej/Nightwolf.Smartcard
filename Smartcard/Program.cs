@@ -32,7 +32,7 @@ namespace Smartcard
                     System.Console.WriteLine(cert.Subject + ": " + cert.NotAfter);
                 }
 
-                scard.UnlockCard("4971");
+                //scard.UnlockCard("4971");
             }
         }
 
