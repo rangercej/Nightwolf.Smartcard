@@ -176,28 +176,28 @@ namespace Smartcard
         }
 
         [DllImport("winscard.dll")]
-        public extern static uint SCardEstablishContext(uint scope, IntPtr reserved1, IntPtr reserved2, out IntPtr context);
+        public extern static int SCardEstablishContext(uint scope, IntPtr reserved1, IntPtr reserved2, out IntPtr context);
 
         [DllImport("winscard.dll")]
-        public extern static uint SCardReleaseContext(IntPtr context);
+        public extern static int SCardReleaseContext(IntPtr context);
 
         [DllImport("winscard.dll")]
-        public extern static uint SCardCancel(IntPtr context);
+        public extern static int SCardCancel(IntPtr context);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static uint SCardListReadersW(IntPtr context, string groups, char[] readers, out uint readersLength);
+        public extern static int SCardListReadersW(IntPtr context, string groups, char[] readers, out uint readersLength);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static uint SCardListCardsW(IntPtr context, byte[] atr, IntPtr interfaces, uint interfaceCount, char[] cards, out uint cardsLength);
+        public extern static int SCardListCardsW(IntPtr context, byte[] atr, IntPtr interfaces, uint interfaceCount, char[] cards, out uint cardsLength);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static uint SCardLocateCards(IntPtr context, string cards, [In,Out] ScardReaderState[] states, uint readersLength);
+        public extern static int SCardLocateCards(IntPtr context, string cards, [In,Out] ScardReaderState[] states, uint readersLength);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static uint SCardGetStatusChange(IntPtr context, uint timeout, [In,Out] ScardReaderState[] states, uint readersLength);
+        public extern static int SCardGetStatusChange(IntPtr context, uint timeout, [In,Out] ScardReaderState[] states, uint readersLength);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static uint SCardGetCardTypeProviderNameW(IntPtr context, string cardname, [MarshalAs(UnmanagedType.U4)] Provider providerId, StringBuilder provider, out uint providerLength);
+        public extern static int SCardGetCardTypeProviderNameW(IntPtr context, string cardname, [MarshalAs(UnmanagedType.U4)] Provider providerId, StringBuilder provider, out uint providerLength);
 
         [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public extern static bool CryptAcquireContextW(out IntPtr context, string container, string provider, [MarshalAs(UnmanagedType.U4)] CryptoProvider provType, uint flags);

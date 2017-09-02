@@ -259,7 +259,7 @@ namespace Smartcard
             this.CurrentState.Add(awaitNewReader);
 
             int i = 0;
-            uint result = 0;
+            int result = 0;
             while (!this.cancelToken.IsCancellationRequested)
             {
                 try {
@@ -336,7 +336,7 @@ namespace Smartcard
         /// <param name="scardChanges">Smartcard status change list</param>
         /// <param name="fetchStatusResult">Result of last status fetch</param>
         /// <returns>True if handler had events to process, false otherwise</returns>
-        private bool HandleStoppedService(List<SmartcardInterop.ScardReaderState> scardState, uint fetchStatusResult)
+        private bool HandleStoppedService(List<SmartcardInterop.ScardReaderState> scardState, int fetchStatusResult)
         {
             bool processedEvents = false;
 
@@ -360,7 +360,7 @@ namespace Smartcard
         /// <param name="scardChanges">Smartcard status change list</param>
         /// <param name="fetchStatusResult">Result of last status fetch</param>
         /// <returns>True if handler had events to process, false otherwise</returns>
-        private bool HandleRemovedReaders(List<SmartcardInterop.ScardReaderState> scardChanges, uint fetchStatusResult)
+        private bool HandleRemovedReaders(List<SmartcardInterop.ScardReaderState> scardChanges, int fetchStatusResult)
         {
             bool processedEvents = false;
 
@@ -386,7 +386,7 @@ namespace Smartcard
         /// <param name="scardChanges">Smartcard status change list</param>
         /// <param name="fetchStatusResult">Result of last status fetch</param>
         /// <returns>True if handler had events to process, false otherwise</returns>
-        private bool HandleRemovedCards(List<SmartcardInterop.ScardReaderState> scardChanges, uint fetchStatusResult)
+        private bool HandleRemovedCards(List<SmartcardInterop.ScardReaderState> scardChanges, int fetchStatusResult)
         {
             bool processedEvents = false;
 
@@ -412,7 +412,7 @@ namespace Smartcard
         /// <param name="scardChanges">Smartcard status change list</param>
         /// <param name="fetchStatusResult">Result of last status fetch</param>
         /// <returns>True if handler had events to process, false otherwise</returns>
-        private bool HandleInsertedCards(ref List<SmartcardInterop.ScardReaderState> scardChanges, uint fetchStatusResult)
+        private bool HandleInsertedCards(ref List<SmartcardInterop.ScardReaderState> scardChanges, int fetchStatusResult)
         {
             bool processedEvents = false;
 
