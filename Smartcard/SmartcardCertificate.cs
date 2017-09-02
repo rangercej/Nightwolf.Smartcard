@@ -29,7 +29,7 @@ namespace Smartcard
                 throw new SmartcardException(Marshal.GetLastWin32Error());
             }
 
-            uint certLen;
+            int certLen;
             success = SmartcardInterop.CryptGetKeyParam(keyContext, SmartcardInterop.KeyParam.KpCertificate, null, out certLen, 0);
             if (!success)
             {

@@ -32,10 +32,7 @@ namespace Smartcard
             this.SmartcardCryptoProvider = GetSmartcardCryptoProvider(cardname);
             this.cardContext = GetSmartcardCryptoContext(reader, cardname);
 
-            uint buflen = 1024;
-            var buffer = new byte[buflen];
-
-            uint certStoreLen = 0;
+            int certStoreLen = 0;
             var success = SmartcardInterop.CryptGetProvParam(cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, null, out certStoreLen, 0);
             if (!success)
             {
@@ -74,7 +71,7 @@ namespace Smartcard
         private string GetSmartcardCryptoProvider(string cardname)
         {
             var provider = new StringBuilder();
-            uint len = 256;
+            int len = 256;
             provider.EnsureCapacity(256);
             
             var result = SmartcardInterop.SCardGetCardTypeProviderNameW(IntPtr.Zero, cardname, SmartcardInterop.Provider.Csp, provider, out len);

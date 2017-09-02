@@ -100,7 +100,7 @@ namespace Smartcard
                 SmartcardInterop.SCardReleaseContext(this.context);
             }
 
-            var result = SmartcardInterop.SCardEstablishContext((uint)SmartcardInterop.Scope.User, IntPtr.Zero, IntPtr.Zero, out context);
+            var result = SmartcardInterop.SCardEstablishContext(SmartcardInterop.Scope.User, IntPtr.Zero, IntPtr.Zero, out context);
             if (result != SmartcardException.SCardSuccess)
             {
                 throw new SmartcardException(result);
@@ -141,7 +141,7 @@ namespace Smartcard
         /// <returns>List of attached readers</returns>
         private List<string> FetchReaders()
         {
-            uint readerLen = 1024;
+            int readerLen = 1024;
             var readers = new char[1024];
 
             var result = SmartcardInterop.SCardListReadersW(context, null, readers, out readerLen);
@@ -160,7 +160,7 @@ namespace Smartcard
         /// <returns>List of supported card types</returns>
         private List<string> FetchCards()
         {
-            uint cardLen = 16384;
+            int cardLen = 16384;
             var cards = new char[cardLen];
 
             var result = SmartcardInterop.SCardListCardsW(context, null, IntPtr.Zero, 0, cards, out cardLen);
@@ -213,7 +213,7 @@ namespace Smartcard
             {
                 var d = ArrayToMultiString(this.CardNames);
 
-                var result = SmartcardInterop.SCardLocateCards(context, d, scardstate, Convert.ToUInt32(scardstate.Length));
+                var result = SmartcardInterop.SCardLocateCards(context, d, scardstate, scardstate.Length);
                 if (result != SmartcardException.SCardSuccess)
                 {
                     throw new SmartcardException(result);
@@ -268,7 +268,7 @@ namespace Smartcard
                     SmartcardInterop.ScardReaderState[] scardstate = null;
 
                     scardstate = this.CurrentState.ToArray();
-                    result = SmartcardInterop.SCardGetStatusChange(context, SmartcardInterop.Infinite, scardstate, Convert.ToUInt32(scardstate.Length));
+                    result = SmartcardInterop.SCardGetStatusChange(context, SmartcardInterop.Infinite, scardstate, scardstate.Length);
                     if (this.cancelToken.IsCancellationRequested || result == SmartcardException.SCardECancelled)
                     {
                         System.Diagnostics.Debug.Print("Cancellation requested");
@@ -489,7 +489,7 @@ namespace Smartcard
         /// <returns>Cardname matching the ATR</returns>
         private string FindCardWithAtr(byte[] atr)
         {
-            uint cardLen = 1024;
+            int cardLen = 1024;
             var cards = new char[cardLen];
             var result = SmartcardInterop.SCardListCardsW(IntPtr.Zero, atr, IntPtr.Zero, 0, cards, out cardLen);
             if (result != SmartcardException.SCardSuccess)
