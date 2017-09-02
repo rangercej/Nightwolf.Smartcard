@@ -4,7 +4,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Smartcard
+namespace Nightwolf.Smartcard
 {
     public sealed class Smartcard : IDisposable
     {

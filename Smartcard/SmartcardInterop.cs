@@ -2,7 +2,7 @@
 using System.Text;
 using System.Runtime.InteropServices;
 
-namespace Smartcard
+namespace Nightwolf.Smartcard
 {
     /// <summary>
     /// This class contains C# versions of method calls, structures and constants from winscard.h and wincrypt.h.

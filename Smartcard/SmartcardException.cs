@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel;
 
-namespace Smartcard
+namespace Nightwolf.Smartcard
 {
     public sealed class SmartcardException : Win32Exception
     {

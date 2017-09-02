@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading;
 
-namespace Smartcard
+namespace Nightwolf.Smartcard
 {
     class Program
     {
