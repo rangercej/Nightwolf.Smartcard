@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Threading;
+using System.Security.Cryptography;
 
 namespace Nightwolf.Smartcard
 {
     class Program
     {
+        static string s = "Hello World!";
+
         static void Main(string[] args)
         {
             using (var x = new SmartcardReader())
@@ -15,9 +18,9 @@ namespace Nightwolf.Smartcard
                 var cts = new CancellationTokenSource();
 
                 x.StartMonitoring(cts.Token);
-                Thread.Sleep(10000);
-                Console.WriteLine("Stopping");
-                cts.Cancel();
+                //Thread.Sleep(10000);
+                //Console.WriteLine("Stopping");
+                //cts.Cancel();
 
                 Console.ReadLine();
             }
@@ -27,12 +30,30 @@ namespace Nightwolf.Smartcard
         {
             using (var scard = ((SmartcardEventArgs)args).SmartCard)
             {
-                foreach (var cert in scard.CertificateStore.Certificates)
+                var pin = "123456";
+                var spin = new System.Security.SecureString();
+                foreach (var ch in pin)
                 {
-                    System.Console.WriteLine(cert.Subject + ": " + cert.NotAfter);
+                    spin.AppendChar(ch);
                 }
 
-                //scard.UnlockCard("4971");
+                foreach (var cert in scard.CertificateStore.Certificates)
+                {
+                    Console.WriteLine(cert.Subject + ": " + cert.NotAfter);
+                }
+
+                var c = scard.CertificateStore.Certificates[0];
+                var bytes = System.Text.Encoding.ASCII.GetBytes(s);
+
+                scard.UnlockCard(pin);
+                
+                var encryptor = (RSACryptoServiceProvider)c.PublicKey.Key;
+                var decryptor = (RSACryptoServiceProvider)c.PrivateKey;
+
+                var encrypt = encryptor.Encrypt(bytes, RSAEncryptionPadding.Pkcs1);
+                var decrypt = decryptor.Decrypt(encrypt, RSAEncryptionPadding.Pkcs1);
+           
+                Console.WriteLine(System.Text.Encoding.ASCII.GetString(decrypt));
             }
         }
 
@@ -40,7 +61,7 @@ namespace Nightwolf.Smartcard
         {
             var scard = ((SmartcardEventArgs)args).ReaderName;
 
-            System.Console.WriteLine("Card removed " + scard);
+            Console.WriteLine("Card removed " + scard);
         }
     }
 }

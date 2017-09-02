@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -11,12 +10,15 @@ namespace Nightwolf.Smartcard
         private X509Store certStore = null;
         private IntPtr certStoreHandle = IntPtr.Zero;
 
-        private IntPtr cardContext;
+        private IntPtr cardContext = IntPtr.Zero;
 
         private bool disposedValue = false; // To detect redundant calls
 
         private readonly string SmartcardRootContainer = string.Empty;
         private readonly string SmartcardCryptoProvider = string.Empty;
+
+        private readonly string SmartcardReaderName = string.Empty;
+        private readonly string SmartcardName = string.Empty;
 
         /// <summary>
         /// Create a smartcard handling class
@@ -25,34 +27,28 @@ namespace Nightwolf.Smartcard
         /// <param name="cardname">Type name of the smartcard in the reader</param>
         public Smartcard(string reader, string cardname)
         {
-            this.cardContext = IntPtr.Zero;
             this.SmartcardRootContainer = @"\\.\" + reader + @"\";
-            var containers = new List<string>();
 
-            this.SmartcardCryptoProvider = GetSmartcardCryptoProvider(cardname);
-            this.cardContext = GetSmartcardCryptoContext(reader, cardname);
+            this.SmartcardReaderName = reader;
+            this.SmartcardName = cardname;
 
-            int certStoreLen = 0;
-            var success = SmartcardInterop.CryptGetProvParam(cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, null, out certStoreLen, 0);
-            if (!success)
-            {
-                throw new SmartcardException(Marshal.GetLastWin32Error());
-            }
+            this.SmartcardCryptoProvider = GetSmartcardCryptoProvider(this.SmartcardName);
+            this.cardContext = GetSmartcardCryptoContext(this.SmartcardReaderName, this.SmartcardName);
+        }
 
-            if (certStoreLen < 1)
-            {
-                throw new SmartcardException(SmartcardException.SCardEInsufficientBuffer);
-            }
+        public string ReaderName
+        {
+            get { return this.SmartcardReaderName; }
+        }
 
-            var byteArray = new byte[certStoreLen];
-            success = SmartcardInterop.CryptGetProvParam(cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, byteArray, out certStoreLen, 0);
-            if (!success)
-            {
-                throw new SmartcardException(Marshal.GetLastWin32Error());
-            }
+        public string CardName
+        {
+            get { return this.SmartcardName; }
+        }
 
-            this.certStoreHandle = (IntPtr)BitConverter.ToUInt32(byteArray, 0);
-            this.certStore = new X509Store(this.certStoreHandle);
+        public string ProviderName
+        {
+            get { return this.SmartcardCryptoProvider; }
         }
 
         /// <summary>
@@ -60,7 +56,37 @@ namespace Nightwolf.Smartcard
         /// </summary>
         public X509Store CertificateStore
         {
-            get { return this.certStore; }
+            get
+            {
+                if (this.certStore != null)
+                {
+                    return this.certStore;
+                }
+
+                int certStoreLen = 0;
+                var success = SmartcardInterop.CryptGetProvParam(cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, null, out certStoreLen, 0);
+                if (!success)
+                {
+                    throw new SmartcardException(Marshal.GetLastWin32Error());
+                }
+
+                if (certStoreLen < 1)
+                {
+                    throw new SmartcardException(SmartcardException.SCardEInsufficientBuffer);
+                }
+
+                var byteArray = new byte[certStoreLen];
+                success = SmartcardInterop.CryptGetProvParam(cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, byteArray, out certStoreLen, 0);
+                if (!success)
+                {
+                    throw new SmartcardException(Marshal.GetLastWin32Error());
+                }
+
+                this.certStoreHandle = (IntPtr)BitConverter.ToUInt32(byteArray, 0);
+                this.certStore = new X509Store(this.certStoreHandle);
+
+                return this.certStore;
+            }
         }
 
         /// <summary>
@@ -114,7 +140,7 @@ namespace Nightwolf.Smartcard
         /// <exception cref="SmartcardException">Exception thrown on unlock error</exception>
         public void UnlockCard(string pin)
         {
-            var pinBytes = Encoding.ASCII.GetBytes(pin + '\0');
+            var pinBytes = Encoding.ASCII.GetBytes(pin);
             var success = SmartcardInterop.CryptSetProvParam(this.cardContext, SmartcardInterop.ProviderParamSet.KeyExchangePin, pinBytes, 0);
             if (!success)
             {

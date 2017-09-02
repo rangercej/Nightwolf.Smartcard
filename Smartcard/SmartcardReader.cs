@@ -9,7 +9,14 @@ namespace Nightwolf.Smartcard
 {
     public sealed class SmartcardReader : IDisposable
     {
+        /// <summary>
+        /// Event fired when a smartcard is inserted
+        /// </summary>
         public event EventHandler OnCardInserted;
+
+        /// <summary>
+        /// Event fired when a smartcard is removed
+        /// </summary>
         public event EventHandler OnCardRemoved;
 
         private IntPtr context = IntPtr.Zero;

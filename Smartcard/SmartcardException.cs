@@ -135,14 +135,9 @@ namespace Nightwolf.Smartcard
 
         public SmartcardException(int result) : base(result) {}
 
-        public new string Message
-        {
-            get { return base.Message; }
-       }
-
         public int Status
         {
-            get { return base.HResult; }
+            get { return base.NativeErrorCode; }
         }
     }
 }
