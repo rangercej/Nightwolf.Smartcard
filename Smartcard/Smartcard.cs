@@ -1,58 +1,66 @@
-﻿using System;
-using System.Security.Cryptography.X509Certificates;
-using System.Runtime.InteropServices;
-using System.Text;
-
-namespace Nightwolf.Smartcard
+﻿namespace Nightwolf.Smartcard
 {
+    using System;
+    using System.Runtime.InteropServices;
+    using System.Security.Cryptography.X509Certificates;
+    using System.Text;
+
+    /// <summary>
+    /// Handle smartcard interactions
+    /// </summary>
+    /// <inheritdoc cref="IDisposable"/>
     public sealed class Smartcard : IDisposable
     {
-        private X509Store certStore = null;
-        private IntPtr certStoreHandle = IntPtr.Zero;
+        /// <summary>Smartcard property: root container identifier</summary>
+        private readonly string smartcardRootContainer;
 
-        private IntPtr cardContext = IntPtr.Zero;
+        /// <summary>Smartcard property: name of cryptographic provider for the smartcard</summary>
+        private readonly string smartcardCryptoProvider;
 
-        private bool disposedValue = false; // To detect redundant calls
+        /// <summary>Disposing flag to detect redundant calls</summary>
+        private bool disposedValue;
 
-        private readonly string SmartcardRootContainer = string.Empty;
-        private readonly string SmartcardCryptoProvider = string.Empty;
+        /// <summary>Certificate store for the smartcard</summary>
+        private X509Store certStore;
 
-        private readonly string SmartcardReaderName = string.Empty;
-        private readonly string SmartcardName = string.Empty;
+        /// <summary>Unmanaged pointer to the smartcard certificate store</summary>
+        private IntPtr certStoreHandle;
+
+        /// <summary>Unmanaged handler for smartcard crypto operations</summary>
+        private IntPtr cardContext;
 
         /// <summary>
-        /// Create a smartcard handling class
+        /// Initializes a new instance of the <see cref="Smartcard"/> class. 
         /// </summary>
         /// <param name="reader">Reader containing the smartcard</param>
         /// <param name="cardname">Type name of the smartcard in the reader</param>
         public Smartcard(string reader, string cardname)
         {
-            this.SmartcardRootContainer = @"\\.\" + reader + @"\";
+            this.smartcardRootContainer = @"\\.\" + reader + @"\";
 
-            this.SmartcardReaderName = reader;
-            this.SmartcardName = cardname;
+            this.ReaderName = reader;
+            this.CardName = cardname;
 
-            this.SmartcardCryptoProvider = GetSmartcardCryptoProvider(this.SmartcardName);
-            this.cardContext = GetSmartcardCryptoContext(this.SmartcardReaderName, this.SmartcardName);
-        }
+            this.smartcardCryptoProvider = this.GetSmartcardCryptoProvider(this.CardName);
+            this.cardContext = this.GetSmartcardCryptoContext();
 
-        public string ReaderName
-        {
-            get { return this.SmartcardReaderName; }
-        }
-
-        public string CardName
-        {
-            get { return this.SmartcardName; }
-        }
-
-        public string ProviderName
-        {
-            get { return this.SmartcardCryptoProvider; }
+            this.certStoreHandle = IntPtr.Zero;
+            this.certStore = null;
+            this.disposedValue = false;
         }
 
         /// <summary>
-        /// Return the certificate store held on the smartcard
+        /// Gets the name of the smartcard's associated reader
+        /// </summary>
+        public string ReaderName { get; }
+
+        /// <summary>
+        /// Gets the name of the smartcard's type
+        /// </summary>
+        public string CardName { get; }
+
+        /// <summary>
+        /// Gets the certificate store held on the smartcard
         /// </summary>
         public X509Store CertificateStore
         {
@@ -63,8 +71,7 @@ namespace Nightwolf.Smartcard
                     return this.certStore;
                 }
 
-                int certStoreLen = 0;
-                var success = SmartcardInterop.CryptGetProvParam(cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, null, out certStoreLen, 0);
+                var success = SmartcardInterop.CryptGetProvParam(this.cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, null, out var certStoreLen, 0);
                 if (!success)
                 {
                     throw new SmartcardException(Marshal.GetLastWin32Error());
@@ -76,7 +83,7 @@ namespace Nightwolf.Smartcard
                 }
 
                 var byteArray = new byte[certStoreLen];
-                success = SmartcardInterop.CryptGetProvParam(cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, byteArray, out certStoreLen, 0);
+                success = SmartcardInterop.CryptGetProvParam(this.cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, byteArray, out certStoreLen, 0);
                 if (!success)
                 {
                     throw new SmartcardException(Marshal.GetLastWin32Error());
@@ -87,50 +94,6 @@ namespace Nightwolf.Smartcard
 
                 return this.certStore;
             }
-        }
-
-        /// <summary>
-        /// Get the smartcard crypto provider driver ID
-        /// </summary>
-        /// <param name="cardname">Card type name for which to identify the crypto provider</param>
-        /// <returns>Crypto provider identity</returns>
-        private string GetSmartcardCryptoProvider(string cardname)
-        {
-            var provider = new StringBuilder();
-            int len = 256;
-            provider.EnsureCapacity(256);
-            
-            var result = SmartcardInterop.SCardGetCardTypeProviderNameW(IntPtr.Zero, cardname, SmartcardInterop.Provider.Csp, provider, out len);
-            if (result != SmartcardException.SCardSuccess)
-            {
-                throw new SmartcardException(result);
-            }
-
-            return provider.ToString();
-        }
-
-        /// <summary>
-        /// Create a smartcard crypto context
-        /// </summary>
-        /// <param name="cardname">Smartcard reader containing the smartcard</param>
-        /// <param name="cardname">Card type name</param>
-        /// <returns>Crypto context</returns>
-        private IntPtr GetSmartcardCryptoContext(string reader, string cardname)
-        {
-            IntPtr context = IntPtr.Zero;
-
-            var success = SmartcardInterop.CryptAcquireContextW(out context, this.SmartcardRootContainer, this.SmartcardCryptoProvider, SmartcardInterop.CryptoProvider.RsaFull, 0);
-            if (!success)
-            {
-                throw new SmartcardException(Marshal.GetLastWin32Error());
-            }
-
-            if (this.SmartcardCryptoProvider.Length == 0)
-            {
-                throw new SmartcardException(SmartcardException.SCardECardUnsupported);
-            }
-
-            return context;
         }
 
         /// <summary>
@@ -155,7 +118,7 @@ namespace Nightwolf.Smartcard
         /// <param name="disposing">Called from dispose()</param>
         public void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!this.disposedValue)
             {
                 if (disposing)
                 {
@@ -170,19 +133,62 @@ namespace Nightwolf.Smartcard
 
                 if (this.cardContext != IntPtr.Zero)
                 {
-                    SmartcardInterop.CryptReleaseContext(cardContext, 0);
+                    SmartcardInterop.CryptReleaseContext(this.cardContext, 0);
                     this.cardContext = IntPtr.Zero;
                 }
 
-                disposedValue = true;
+                this.disposedValue = true;
             }
         }
 
-        // This code added to correctly implement the disposable pattern.
+        /// <summary>
+        /// Dispose this class, release smartcard context
+        /// </summary>
+        /// <inheritdoc cref="Dispose()"/>
         public void Dispose()
         {
-            Dispose(true);
+            this.Dispose(true);
         }
         #endregion
+
+        /// <summary>
+        /// Get the smartcard crypto provider driver ID
+        /// </summary>
+        /// <param name="cardname">Card type name for which to identify the crypto provider</param>
+        /// <returns>Crypto provider identity</returns>
+        private string GetSmartcardCryptoProvider(string cardname)
+        {
+            var provider = new StringBuilder();
+            var len = 256;
+            provider.EnsureCapacity(len);
+            
+            var result = SmartcardInterop.SCardGetCardTypeProviderNameW(IntPtr.Zero, cardname, SmartcardInterop.Provider.Csp, provider, out len);
+            if (result != SmartcardException.SCardSuccess)
+            {
+                throw new SmartcardException(result);
+            }
+
+            return provider.ToString();
+        }
+
+        /// <summary>
+        /// Create a smartcard crypto context
+        /// </summary>
+        /// <returns>Crypto context</returns>
+        private IntPtr GetSmartcardCryptoContext()
+        {
+            var success = SmartcardInterop.CryptAcquireContextW(out var context, this.smartcardRootContainer, this.smartcardCryptoProvider, SmartcardInterop.CryptoProvider.RsaFull, 0);
+            if (!success)
+            {
+                throw new SmartcardException(Marshal.GetLastWin32Error());
+            }
+
+            if (this.smartcardCryptoProvider.Length == 0)
+            {
+                throw new SmartcardException(SmartcardException.SCardECardUnsupported);
+            }
+
+            return context;
+        }
     }
 }

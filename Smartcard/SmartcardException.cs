@@ -1,7 +1,11 @@
-﻿using System.ComponentModel;
-
-namespace Nightwolf.Smartcard
+﻿namespace Nightwolf.Smartcard
 {
+    using System.ComponentModel;
+
+    /// <summary>
+    /// Smartcard exception
+    /// </summary>
+    /// <inheritdoc cref="Win32Exception"/>
     public sealed class SmartcardException : Win32Exception
     {
         // Error codes from winscard.h
@@ -131,8 +135,15 @@ namespace Nightwolf.Smartcard
         public const int NteUserCancelled = unchecked((int)0x80090036);
         public const int NtePasswordChangeRequired = unchecked((int)0x80090037);
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SmartcardException"/> class. 
+        /// </summary>
         public SmartcardException() : base() {}
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SmartcardException"/> class. 
+        /// </summary>
+        /// <param name="result">Exception status code</param>
         public SmartcardException(int result) : base(result) {}
 
         public int Status

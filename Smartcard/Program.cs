@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 
 namespace Nightwolf.Smartcard
 {
-    class Program
+    static class Program
     {
         static string s = "Hello World!";
 
@@ -26,11 +26,11 @@ namespace Nightwolf.Smartcard
             }
         }
 
-        private static void CardInserted(object sender, EventArgs args)
+        private static void CardInserted(object sender, SmartcardEventArgs args)
         {
-            using (var scard = ((SmartcardEventArgs)args).SmartCard)
+            using (var scard = args.SmartCard)
             {
-                var pin = "123456";
+                var pin = "964002";
                 var spin = new System.Security.SecureString();
                 foreach (var ch in pin)
                 {
@@ -57,9 +57,9 @@ namespace Nightwolf.Smartcard
             }
         }
 
-        private static void CardRemoved(object sender, EventArgs args)
+        private static void CardRemoved(object sender, SmartcardEventArgs args)
         {
-            var scard = ((SmartcardEventArgs)args).ReaderName;
+            var scard = args.ReaderName;
 
             Console.WriteLine("Card removed " + scard);
         }

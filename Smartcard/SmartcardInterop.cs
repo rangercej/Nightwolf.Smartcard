@@ -1,22 +1,29 @@
-﻿using System;
-using System.Text;
-using System.Runtime.InteropServices;
-
-namespace Nightwolf.Smartcard
+﻿namespace Nightwolf.Smartcard
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Runtime.InteropServices;
+    using System.Text;
+
     /// <summary>
     /// This class contains C# versions of method calls, structures and constants from winscard.h and wincrypt.h.
     /// </summary>
     public static class SmartcardInterop
     {
-        public enum Scope : int
+        /// <summary>
+        /// SCARD_SCOPE_ constants from winscard.h
+        /// </summary>
+        public enum Scope
         {
             User = 0,
             Terminal = 1,
             System = 2
         }
 
-        public enum Provider : int
+        /// <summary>
+        /// SCARD_PROVIDER_ constants from winscard.h
+        /// </summary>
+        public enum Provider
         {
             Primary = 1,
             Csp = 2,
@@ -24,7 +31,10 @@ namespace Nightwolf.Smartcard
             CardModule = unchecked((int)0x80000001)
         }
 
-        public enum CryptoProvider : int
+        /// <summary>
+        /// PROV_ constants from wincrypt.h
+        /// </summary>
+        public enum CryptoProvider
         {
             RsaFull = 1,
             RsaSig = 2,
@@ -46,8 +56,10 @@ namespace Nightwolf.Smartcard
             RsaAes = 24
         }
 
-        // CryptoAPI PP_xxx constants for CryptoGetParam
-        public enum ProviderParamGet : int
+        /// <summary>
+        // PP_xxx constants for CryptoGetParam from wincrypt.h
+        /// </summary>
+        public enum ProviderParamGet
         {
             AdminPin = 0x1F,
             AppliCert = 0x12,
@@ -85,7 +97,10 @@ namespace Nightwolf.Smartcard
             Version = 0x05
         }
 
-        public enum ProviderParamSet : int
+        /// <summary>
+        // PP_xxx constants for CryptoSetParam from wincrypt.h
+        /// </summary>
+        public enum ProviderParamSet
         {
             ClientHwnd = 0x01,
             DeleteKey = 0x18,
@@ -103,19 +118,19 @@ namespace Nightwolf.Smartcard
             SmartcardGuid = 0x2D
         }
 
-        public enum KeyFlags : int
+        public enum KeyFlags
         {
             AtKeyExchange = 1,
             AtSignature = 2
         }
 
-        public enum KeyParam : int
+        public enum KeyParam
         {
             KpCertificate = 26
         }
 
         [Flags]
-        public enum ProviderParamFlags : int
+        public enum ProviderParamFlags
         {
             CryptFirst = 0x01,
             CryptNext = 0x02,
@@ -123,7 +138,7 @@ namespace Nightwolf.Smartcard
         }
         
         [Flags]
-        public enum CryptoFlags : int
+        public enum CryptoFlags
         {
             VerifyContext = unchecked((int)0xF0000000),
             NewKeySet = 0x08,
@@ -134,7 +149,7 @@ namespace Nightwolf.Smartcard
         }
 
         [Flags]
-        public enum State : int
+        public enum State
         {
             Unaware = 0x00,
             Ignore = 0x01,
@@ -168,51 +183,105 @@ namespace Nightwolf.Smartcard
         }
 
         [DllImport("winscard.dll")]
-        public extern static int SCardEstablishContext([MarshalAs(UnmanagedType.U4)]Scope scope, IntPtr reserved1, IntPtr reserved2, out IntPtr context);
+        public static extern int SCardEstablishContext([MarshalAs(UnmanagedType.U4)]Scope scope, IntPtr reserved1, IntPtr reserved2, out IntPtr context);
 
         [DllImport("winscard.dll")]
-        public extern static int SCardReleaseContext(IntPtr context);
+        public static extern int SCardReleaseContext(IntPtr context);
 
         [DllImport("winscard.dll")]
-        public extern static int SCardCancel(IntPtr context);
+        public static extern int SCardCancel(IntPtr context);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static int SCardListReadersW(IntPtr context, string groups, char[] readers, out int readersLength);
+        public static extern int SCardListReadersW(IntPtr context, string groups, char[] readers, out int readersLength);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static int SCardListCardsW(IntPtr context, byte[] atr, IntPtr interfaces, int interfaceCount, char[] cards, out int cardsLength);
+        public static extern int SCardListCardsW(IntPtr context, byte[] atr, IntPtr interfaces, int interfaceCount, char[] cards, out int cardsLength);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static int SCardLocateCards(IntPtr context, string cards, [In,Out] ScardReaderState[] states, int readersLength);
+        public static extern int SCardLocateCards(IntPtr context, string cards, [In,Out] ScardReaderState[] states, int readersLength);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static int SCardGetStatusChange(IntPtr context, int timeout, [In,Out] ScardReaderState[] states, int readersLength);
+        public static extern int SCardGetStatusChange(IntPtr context, int timeout, [In,Out] ScardReaderState[] states, int readersLength);
 
         [DllImport("winscard.dll", CharSet = CharSet.Unicode)]
-        public extern static int SCardGetCardTypeProviderNameW(IntPtr context, string cardname, [MarshalAs(UnmanagedType.U4)] Provider providerId, StringBuilder provider, out int providerLength);
+        public static extern int SCardGetCardTypeProviderNameW(IntPtr context, string cardname, [MarshalAs(UnmanagedType.U4)] Provider providerId, StringBuilder provider, out int providerLength);
 
         [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public extern static bool CryptAcquireContextW(out IntPtr context, string container, string provider, [MarshalAs(UnmanagedType.U4)] CryptoProvider provType, int flags);
+        public static extern bool CryptAcquireContextW(out IntPtr context, string container, string provider, [MarshalAs(UnmanagedType.U4)] CryptoProvider provType, int flags);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        public extern static bool CryptReleaseContext(IntPtr context, int flags);
+        public static extern bool CryptReleaseContext(IntPtr context, int flags);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        public extern static bool CryptSetProvParam(IntPtr context, [MarshalAs(UnmanagedType.U4)] ProviderParamSet param, byte[] data, [MarshalAs(UnmanagedType.U4)] ProviderParamFlags flags);
+        public static extern bool CryptSetProvParam(IntPtr context, [MarshalAs(UnmanagedType.U4)] ProviderParamSet param, byte[] data, [MarshalAs(UnmanagedType.U4)] ProviderParamFlags flags);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        public extern static bool CryptGetProvParam(IntPtr context, [MarshalAs(UnmanagedType.U4)] ProviderParamGet param, byte[] data, out int datalen, [MarshalAs(UnmanagedType.U4)] ProviderParamFlags flags);
+        public static extern bool CryptGetProvParam(IntPtr context, [MarshalAs(UnmanagedType.U4)] ProviderParamGet param, byte[] data, out int datalen, [MarshalAs(UnmanagedType.U4)] ProviderParamFlags flags);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        public extern static bool CryptGetUserKey(IntPtr context, [MarshalAs(UnmanagedType.U4)] KeyFlags keySpec, out IntPtr keyContext);
+        public static extern bool CryptGetUserKey(IntPtr context, [MarshalAs(UnmanagedType.U4)] KeyFlags keySpec, out IntPtr keyContext);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        public extern static bool CryptDestroyKey(IntPtr keyContext);
+        public static extern bool CryptDestroyKey(IntPtr keyContext);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        public extern static bool CryptGetKeyParam(IntPtr keyContext, [MarshalAs(UnmanagedType.U4)] KeyParam param, byte[] data, out int datalen, int flags);
+        public static extern bool CryptGetKeyParam(IntPtr keyContext, [MarshalAs(UnmanagedType.U4)] KeyParam param, byte[] data, out int datalen, int flags);
 
         [DllImport("crypt32.dll", SetLastError = true)]
-        public extern static bool CertCloseStore(IntPtr storeHandle, int flags);
+        public static extern bool CertCloseStore(IntPtr storeHandle, int flags);
+
+        /// <summary>
+        /// Convert a C-style null seperated, double-null terminated string to a c# list of strings
+        /// </summary>
+        /// <param name="multistring">C-style multistring to convert</param>
+        /// <returns>List of strings obtained from the multistring</returns>
+        public static IList<string> MultiStringToArray(char[] multistring)
+        {
+            var stringList = new List<string>();
+            var i = 0;
+            while (i < multistring.Length)
+            {
+                var j = i;
+                if (multistring[j++] == '\0')
+                {
+                    break;
+                }
+
+                while (j < multistring.Length)
+                {
+                    if (multistring[j++] == '\0')
+                    {
+                        stringList.Add(new string(multistring, i, j - i - 1));
+                        i = j;
+                        break;
+                    }
+                }
+            }
+
+            return stringList;
+        }
+
+        /// <summary>
+        /// Convert a list of strings to a C-style null-seperated, double-null terminated string
+        /// </summary>
+        /// <param name="stringlist">List of strings to convert</param>
+        /// <returns>C-style multistring</returns>
+        public static string ArrayToMultiString(IList<string> stringlist)
+        {
+            var sb = new StringBuilder();
+
+            if (stringlist == null)
+            {
+                return sb.ToString();
+            }
+
+            foreach (var s in stringlist)
+            {
+                sb.Append(s);
+                sb.Append('\0');
+            }
+
+            return sb.ToString();
+        }
     }
 }

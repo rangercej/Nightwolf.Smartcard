@@ -1,50 +1,67 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Nightwolf.Smartcard
+﻿namespace Nightwolf.Smartcard
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
+
+    /// <summary>
+    /// Smartcard reader handing and monitoring
+    /// </summary>
+    /// <inheritdoc cref="IDisposable"/>
     public sealed class SmartcardReader : IDisposable
     {
         /// <summary>
-        /// Event fired when a smartcard is inserted
+        /// Name of "smartcard" type to get notified of new smartcards attached to the 
+        /// system whilst monitoring
         /// </summary>
-        public event EventHandler OnCardInserted;
+        private const string NotificationReader = @"\\?PnP?\Notification";
 
-        /// <summary>
-        /// Event fired when a smartcard is removed
-        /// </summary>
-        public event EventHandler OnCardRemoved;
+        /// <summary>Unmanaged handler to the smartcard reader context</summary>
+        private IntPtr readerContext = IntPtr.Zero;
 
-        private IntPtr context = IntPtr.Zero;
+        /// <summary>Attached smartcard readers</summary>
+        private List<string> readerNames = new List<string>();
 
-        private List<string> ReaderNames = new List<string>();
-        private List<string> CardNames = new List<string>();
+        /// <summary>Supported smartcard type names</summary>
+        private List<string> cardNames = new List<string>();
 
-        private List<SmartcardInterop.ScardReaderState> CurrentState = null;
+        /// <summary>Smartcard reader state cache</summary>
+        private List<SmartcardInterop.ScardReaderState> currentState;
 
+        /// <summary>Reader monitoring task handler</summary>
         private Task monitorTask;
+
+        /// <summary>Monitoring cancellation token</summary>
         private CancellationToken cancelToken;
 
-        private bool disposedValue = false; // To detect redundant calls
-
-        const string NotificationReader = @"\\?PnP?\Notification";
+        /// <summary>Disposing flag to detect redundant Dispose calls</summary>
+        private bool disposedValue;
 
         /// <summary>
-        /// Instantiate the smartcard reader class
+        /// Initializes a new instance of the <see cref="SmartcardReader"/> class. 
         /// </summary>
         public SmartcardReader()
         {
             this.monitorTask = null;
             this.IsMonitoring = false;
-            ResetContext();
+            this.disposedValue = false;
+            this.ResetContext();
         }
 
         /// <summary>
-        /// Flag that allows consumers to determine if monitoring is active or not
+        /// Event fired when a smartcard is inserted
+        /// </summary>
+        public event EventHandler<SmartcardEventArgs> OnCardInserted;
+
+        /// <summary>
+        /// Event fired when a smartcard is removed
+        /// </summary>
+        public event EventHandler<SmartcardEventArgs> OnCardRemoved;
+
+        /// <summary>
+        /// Gets a value indicating whether reader monitoring is active or not
         /// </summary>
         public bool IsMonitoring
         {
@@ -62,21 +79,51 @@ namespace Nightwolf.Smartcard
                 return;
             }
 
-            if (CurrentState != null)
+            if (this.currentState != null)
             {
-                var readersWithCards = CurrentState.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0);
+                var readersWithCards = this.currentState.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0);
                 foreach (var reader in readersWithCards)
                 {
-                    FireCardPresentEvent(reader);
+                    this.FireCardPresentEvent(reader);
                 }
             }
 
             this.cancelToken = ct;
 
-            this.cancelToken.Register(StopMonitoring);
-            this.monitorTask = Task.Factory.StartNew(WaitForReaderStateChange);
+            this.cancelToken.Register(this.StopMonitoring);
+            this.monitorTask = Task.Factory.StartNew(this.WaitForReaderStateChange, this.cancelToken);
             this.IsMonitoring = true;
         }
+
+        #region IDisposable Support
+        /// <summary>
+        /// Free unmanaged resources
+        /// </summary>
+        /// <param name="disposing">Called from Dispose() flag</param>
+        public void Dispose(bool disposing)
+        {
+            if (this.disposedValue)
+            {
+                return;
+            }
+
+            if (this.readerContext != IntPtr.Zero)
+            {
+                SmartcardInterop.SCardReleaseContext(this.readerContext);
+            }
+
+            this.disposedValue = true;
+        }
+
+        /// <summary>
+        /// Free unmanaged resources
+        /// </summary>
+        /// <inheritdoc cref="Dispose()"/>
+        public void Dispose()
+        {
+            this.Dispose(true);
+        }
+        #endregion
 
         /// <summary>
         /// Stop the smartcard monitor
@@ -91,7 +138,7 @@ namespace Nightwolf.Smartcard
             }
 
             System.Diagnostics.Debug.Print("Cancelling requests");
-            SmartcardInterop.SCardCancel(this.context);
+            SmartcardInterop.SCardCancel(this.readerContext);
             this.monitorTask.Wait();
             this.monitorTask = null;
             this.IsMonitoring = false;
@@ -102,20 +149,20 @@ namespace Nightwolf.Smartcard
         /// </summary>
         private void ResetContext()
         {
-            if (this.context != IntPtr.Zero)
+            if (this.readerContext != IntPtr.Zero)
             {
-                SmartcardInterop.SCardReleaseContext(this.context);
+                SmartcardInterop.SCardReleaseContext(this.readerContext);
             }
 
-            var result = SmartcardInterop.SCardEstablishContext(SmartcardInterop.Scope.User, IntPtr.Zero, IntPtr.Zero, out context);
+            var result = SmartcardInterop.SCardEstablishContext(SmartcardInterop.Scope.User, IntPtr.Zero, IntPtr.Zero, out this.readerContext);
             if (result != SmartcardException.SCardSuccess)
             {
                 throw new SmartcardException(result);
             }
 
-            this.CardNames = FetchCards();
-            this.ReaderNames = FetchReaders();
-            this.CurrentState = FetchState(this.ReaderNames);
+            this.cardNames = this.FetchCards();
+            this.readerNames = this.FetchReaders();
+            this.currentState = this.FetchState(this.readerNames);
         }
 
         /// <summary>
@@ -124,11 +171,11 @@ namespace Nightwolf.Smartcard
         /// <param name="state">State class containing the smartcard reader name</param>
         private void FireCardPresentEvent(SmartcardInterop.ScardReaderState state)
         {
-            var cardname = FindCardWithAtr(state.atr);
+            var cardname = this.FindCardWithAtr(state.atr);
             var scard = new Smartcard(state.reader, cardname);
             var args = new SmartcardEventArgs(scard, state.reader);
 
-            OnCardInserted(this, args);
+            this.OnCardInserted?.Invoke(this, args);
         }
 
         /// <summary>
@@ -139,7 +186,7 @@ namespace Nightwolf.Smartcard
         {
             var args = new SmartcardEventArgs(null, state.reader);
 
-            OnCardRemoved(this, args);
+            this.OnCardRemoved?.Invoke(this, args);
         }
 
         /// <summary>
@@ -148,16 +195,16 @@ namespace Nightwolf.Smartcard
         /// <returns>List of attached readers</returns>
         private List<string> FetchReaders()
         {
-            int readerLen = 1024;
-            var readers = new char[1024];
+            var readerLen = 1024;
+            var readers = new char[readerLen];
 
-            var result = SmartcardInterop.SCardListReadersW(context, null, readers, out readerLen);
+            var result = SmartcardInterop.SCardListReadersW(this.readerContext, null, readers, out readerLen);
             if (result != SmartcardException.SCardSuccess && result != SmartcardException.SCardENoReadersAvailable)
             {
                 throw new SmartcardException(result);
             }
 
-            var r = MultiStringToArray(readers);
+            var r = SmartcardInterop.MultiStringToArray(readers);
             return r.ToList();
         }
 
@@ -167,36 +214,37 @@ namespace Nightwolf.Smartcard
         /// <returns>List of supported card types</returns>
         private List<string> FetchCards()
         {
-            int cardLen = 16384;
+            var cardLen = 16384;
             var cards = new char[cardLen];
 
-            var result = SmartcardInterop.SCardListCardsW(context, null, IntPtr.Zero, 0, cards, out cardLen);
+            var result = SmartcardInterop.SCardListCardsW(this.readerContext, null, IntPtr.Zero, 0, cards, out cardLen);
             if (result != SmartcardException.SCardSuccess)
             {
                 throw new SmartcardException(result);
             }
 
-            var c = MultiStringToArray(cards);
+            var c = SmartcardInterop.MultiStringToArray(cards);
             return c.ToList();
         }
 
         /// <summary>
         /// Fetch the state of named smartcard readers
         /// </summary>
-        /// <returns>List of readers for which to fetch state</returns>
-        private List<SmartcardInterop.ScardReaderState> FetchState(IList<string> readerNames)
+        /// <param name="readers">List of readers for which to fetch state</param>
+        /// <returns>Smartcard reader state</returns>
+        private List<SmartcardInterop.ScardReaderState> FetchState(IList<string> readers)
         {
             IList<SmartcardInterop.ScardReaderState> scardstatelist = null;
 
-            if (this.CurrentState == null)
+            if (this.currentState == null)
             {
-                this.CurrentState = new List<SmartcardInterop.ScardReaderState>();
+                this.currentState = new List<SmartcardInterop.ScardReaderState>();
             }
 
-            var state = this.CurrentState.Where(x => readerNames.Contains(x.reader)).ToList();
-            if (state == null || state.Count == 0)
+            var state = this.currentState.Where(x => readers.Contains(x.reader)).ToList();
+            if (state.Count == 0)
             { 
-                scardstatelist = CreatePendingReaderState(readerNames);
+                scardstatelist = this.CreatePendingReaderState(readers);
             }
 
             if (scardstatelist == null)
@@ -204,23 +252,23 @@ namespace Nightwolf.Smartcard
                 return null;
             }
 
-            if (readerNames.Count != scardstatelist.Count)
+            if (readers.Count != scardstatelist.Count)
             {
-                foreach (var reader in readerNames)
+                foreach (var reader in readers)
                 {
                     if (!scardstatelist.Any(x => x.reader.Equals(reader)))
                     {
-                        scardstatelist.Add(CreatePendingReaderState(reader));
+                        scardstatelist.Add(this.CreatePendingReaderState(reader));
                     }
                 }
             }
 
-            SmartcardInterop.ScardReaderState[] scardstate = scardstatelist.ToArray();
-            if (readerNames.Count > 0)
+            var scardstate = scardstatelist.ToArray();
+            if (readers.Count > 0)
             {
-                var d = ArrayToMultiString(this.CardNames);
+                var d = SmartcardInterop.ArrayToMultiString(this.cardNames);
 
-                var result = SmartcardInterop.SCardLocateCards(context, d, scardstate, scardstate.Length);
+                var result = SmartcardInterop.SCardLocateCards(this.readerContext, d, scardstate, scardstate.Length);
                 if (result != SmartcardException.SCardSuccess)
                 {
                     throw new SmartcardException(result);
@@ -233,11 +281,11 @@ namespace Nightwolf.Smartcard
         /// <summary>
         /// Update cached current state for each reader with the latest obtained state.
         /// </summary>
-        /// <param name="newState">List of states to update</param>
+        /// <param name="changedStates">List of states to update</param>
         private void SaveState(List<SmartcardInterop.ScardReaderState> changedStates)
         {
             var changedReaders = changedStates.Select(x => x.reader).ToList();
-            var initialState = this.CurrentState.Where(x => !changedReaders.Contains(x.reader)).ToList();
+            var initialState = this.currentState.Where(x => !changedReaders.Contains(x.reader)).ToList();
             foreach (var state in changedStates)
             {
                 var s = state;
@@ -246,8 +294,8 @@ namespace Nightwolf.Smartcard
                 initialState.Add(s);
             }
 
-            this.CurrentState.Clear();
-            this.CurrentState.AddRange(initialState);
+            this.currentState.Clear();
+            this.currentState.AddRange(initialState);
         }
 
         /// <summary>
@@ -263,19 +311,19 @@ namespace Nightwolf.Smartcard
                 atrLength = 0
             };
 
-            this.CurrentState.Add(awaitNewReader);
+            this.currentState.Add(awaitNewReader);
 
-            int i = 0;
-            int result = 0;
+            var i = 0;
+            var result = 0;
             while (!this.cancelToken.IsCancellationRequested)
             {
-                try {
+                try
+                {
                     i++;
-                    System.Diagnostics.Debug.Print(DateTime.Now.ToString() + ": StateChange - start: " + i.ToString() + "; last status = 0x" + result.ToString("X"));
-                    SmartcardInterop.ScardReaderState[] scardstate = null;
+                    System.Diagnostics.Debug.Print(DateTime.Now + ": StateChange - start: " + i + "; last status = 0x" + result.ToString("X"));
 
-                    scardstate = this.CurrentState.ToArray();
-                    result = SmartcardInterop.SCardGetStatusChange(context, SmartcardInterop.Infinite, scardstate, scardstate.Length);
+                    var scardstate = this.currentState.ToArray();
+                    result = SmartcardInterop.SCardGetStatusChange(this.readerContext, SmartcardInterop.Infinite, scardstate, scardstate.Length);
                     if (this.cancelToken.IsCancellationRequested || result == SmartcardException.SCardECancelled)
                     {
                         System.Diagnostics.Debug.Print("Cancellation requested");
@@ -287,14 +335,14 @@ namespace Nightwolf.Smartcard
                         continue;
                     }
 
-                    System.Diagnostics.Debug.Print(DateTime.Now.ToString() + ": StateChange - result: 0x" + result.ToString("X"));
+                    System.Diagnostics.Debug.Print(DateTime.Now + ": StateChange - result: 0x" + result.ToString("X"));
                     var scardstatelist = scardstate.ToList();
 
                     // If the service has stopped, then we need to flag all existing cards as removed
                     if (this.HandleStoppedService(scardstatelist, result))
                     {
                         // Need to reset the smartcard context
-                        ResetContext();
+                        this.ResetContext();
                         continue;
                     }
 
@@ -318,14 +366,14 @@ namespace Nightwolf.Smartcard
                     this.HandleRemovedCards(scardChanges, result);
                     this.HandleInsertedCards(ref scardChanges, result);
 
-                    SaveState(scardChanges);
+                    this.SaveState(scardChanges);
                 }
                 catch (SmartcardException ex)
                 {
                     if (ex.Status == SmartcardException.SCardEServiceStopped || ex.Status == SmartcardException.SCardENoService)
                     {
-                        ResetContext();
-                        this.CurrentState.Add(awaitNewReader);
+                        this.ResetContext();
+                        this.currentState.Add(awaitNewReader);
                     }
                     else
                     {
@@ -340,7 +388,7 @@ namespace Nightwolf.Smartcard
         /// <summary>
         /// Determine which readers have been removed and fire card removed events for those readers
         /// </summary>
-        /// <param name="scardChanges">Smartcard status change list</param>
+        /// <param name="scardState">Smartcard status change list</param>
         /// <param name="fetchStatusResult">Result of last status fetch</param>
         /// <returns>True if handler had events to process, false otherwise</returns>
         private bool HandleStoppedService(List<SmartcardInterop.ScardReaderState> scardState, int fetchStatusResult)
@@ -352,7 +400,7 @@ namespace Nightwolf.Smartcard
                 var removedReader = scardState.Where(x => x.reader != NotificationReader);
                 foreach (var reader in removedReader.Where(x => (x.currentState & SmartcardInterop.State.Present) != 0))
                 {
-                    FireCardRemovedEvent(reader);
+                    this.FireCardRemovedEvent(reader);
                 }
 
                 processedEvents = true;
@@ -369,18 +417,18 @@ namespace Nightwolf.Smartcard
         /// <returns>True if handler had events to process, false otherwise</returns>
         private bool HandleRemovedReaders(List<SmartcardInterop.ScardReaderState> scardChanges, int fetchStatusResult)
         {
-            bool processedEvents = false;
+            var processedEvents = false;
 
-            var unavailableReaders = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Unavailable) == 0 && (x.currentState & SmartcardInterop.State.Unavailable) != 0).ToList();
-            foreach (var reader in unavailableReaders)
+            var unavailableReaders = scardChanges.Where(x => 
+                    (x.eventState & SmartcardInterop.State.Unavailable) == 0 
+                    && (x.currentState & SmartcardInterop.State.Unavailable) != 0);
+
+            foreach (var reader in unavailableReaders.Where(x => x.currentState != SmartcardInterop.State.Unaware))
             {
                 if (scardChanges.Any(x => x.reader == reader.reader))
                 {
-                    if (reader.currentState != SmartcardInterop.State.Unaware)
-                    {
-                        FireCardRemovedEvent(reader);
-                        processedEvents = true;
-                    }
+                    this.FireCardRemovedEvent(reader);
+                    processedEvents = true;
                 }
             }
 
@@ -395,18 +443,18 @@ namespace Nightwolf.Smartcard
         /// <returns>True if handler had events to process, false otherwise</returns>
         private bool HandleRemovedCards(List<SmartcardInterop.ScardReaderState> scardChanges, int fetchStatusResult)
         {
-            bool processedEvents = false;
+            var processedEvents = false;
 
-            var readersWithoutCards = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Present) == 0 && (x.currentState & SmartcardInterop.State.Present) != 0).ToList();
-            foreach (var reader in readersWithoutCards)
+            var readersWithoutCards = scardChanges.Where(x => 
+                    (x.eventState & SmartcardInterop.State.Present) == 0 
+                    && (x.currentState & SmartcardInterop.State.Present) != 0);
+
+            foreach (var reader in readersWithoutCards.Where(x => x.currentState != SmartcardInterop.State.Unaware))
             {
                 if (scardChanges.Any(x => x.reader == reader.reader))
                 {
-                    if (reader.currentState != SmartcardInterop.State.Unaware)
-                    {
-                        FireCardRemovedEvent(reader);
-                        processedEvents = true;
-                    }
+                    this.FireCardRemovedEvent(reader);
+                    processedEvents = true;
                 }
             }
 
@@ -426,20 +474,23 @@ namespace Nightwolf.Smartcard
             // Are any of the new cards due to new readers?
             if (scardChanges.Any(x => x.reader == NotificationReader))
             {
-                var readers = FetchReaders();
-                var newReaders = readers.Where(x => !this.ReaderNames.Contains(x)).ToList();
-                var newReaderState = FetchState(newReaders);
+                var readers = this.FetchReaders();
+                var newReaders = readers.Where(x => !this.readerNames.Contains(x)).ToList();
+                var newReaderState = this.FetchState(newReaders);
 
-                this.ReaderNames.AddRange(newReaders);
+                this.readerNames.AddRange(newReaders);
                 scardChanges.AddRange(newReaderState);
             }
 
-            var readersWithCards = scardChanges.Where(x => (x.eventState & SmartcardInterop.State.Present) != 0 && (x.currentState & SmartcardInterop.State.Present) == 0).ToList();
+            var readersWithCards = scardChanges.Where(x => 
+                    (x.eventState & SmartcardInterop.State.Present) != 0 
+                    && (x.currentState & SmartcardInterop.State.Present) == 0);
+
             foreach (var reader in readersWithCards)
             {
                 if (scardChanges.Any(x => x.reader == reader.reader))
                 {
-                    FireCardPresentEvent(reader);
+                    this.FireCardPresentEvent(reader);
                     processedEvents = true;
                 }
             }
@@ -461,7 +512,7 @@ namespace Nightwolf.Smartcard
 
             foreach (var reader in readerNames)
             {
-                var state = CreatePendingReaderState(reader);
+                var state = this.CreatePendingReaderState(reader);
                 scardstatelist.Add(state);
             }
 
@@ -474,9 +525,9 @@ namespace Nightwolf.Smartcard
         /// <remarks>
         /// Sets the currentState and eventState to 'Unaware' for the reader
         /// </remarks>
-        /// <param name="readerNames">Reader name for which to create initial state</param>
+        /// <param name="readerName">Reader name for which to create initial state</param>
         /// <returns>List of unknown reader states</returns>
-        private SmartcardInterop.ScardReaderState CreatePendingReaderState (string readerName)
+        private SmartcardInterop.ScardReaderState CreatePendingReaderState(string readerName)
         {
             var state = new SmartcardInterop.ScardReaderState
             {
@@ -496,7 +547,7 @@ namespace Nightwolf.Smartcard
         /// <returns>Cardname matching the ATR</returns>
         private string FindCardWithAtr(byte[] atr)
         {
-            int cardLen = 1024;
+            var cardLen = 1024;
             var cards = new char[cardLen];
             var result = SmartcardInterop.SCardListCardsW(IntPtr.Zero, atr, IntPtr.Zero, 0, cards, out cardLen);
             if (result != SmartcardException.SCardSuccess)
@@ -504,7 +555,7 @@ namespace Nightwolf.Smartcard
                 throw new SmartcardException(result);
             }
 
-            var card = MultiStringToArray(cards);
+            var card = SmartcardInterop.MultiStringToArray(cards);
             if (card.Count == 0)
             {
                 throw new SmartcardException(SmartcardException.SCardECardUnsupported);
@@ -526,94 +577,8 @@ namespace Nightwolf.Smartcard
         {
             foreach (var s in states)
             {
-                System.Diagnostics.Debug.Print(s.reader + ": " + s.currentState.ToString() + " => " + s.eventState.ToString());
+                System.Diagnostics.Debug.Print(s.reader + ": " + s.currentState + " => " + s.eventState);
             }
         }
-
-        /// <summary>
-        /// Convert a C-style null seperated, double-null terminated string to a c# list of strings
-        /// </summary>
-        /// <param name="multistring">C-style multistring to convert</param>
-        /// <returns>List of strings obtained from the multistring</returns>
-        private static IList<string> MultiStringToArray(char[] multistring)
-        {
-            List<string> stringList = new List<string>();
-            int i = 0;
-            while (i < multistring.Length)
-            {
-                int j = i;
-                if (multistring[j++] == '\0')
-                {
-                    break;
-                }
-
-                while (j < multistring.Length)
-                {
-                    if (multistring[j++] == '\0')
-                    {
-                        stringList.Add(new string(multistring, i, j - i - 1));
-                        i = j;
-                        break;
-                    }
-                }
-            }
-
-            return stringList;
-        }
-
-        /// <summary>
-        /// Convert a list of strings to a C-style null-seperated, double-null terminated string
-        /// </summary>
-        /// <param name="stringlist">List of strings to convert</param>
-        /// <returns>C-style multistring</returns>
-        private static string ArrayToMultiString(IList<string> stringlist)
-        {
-            var sb = new StringBuilder();
-
-            if (stringlist == null)
-            {
-                return sb.ToString();
-            }
-
-            foreach (var s in stringlist)
-            {
-                sb.Append(s);
-                sb.Append('\0');
-            }
-
-            return sb.ToString();
-        }
-
-        #region IDisposable Support
-        /// <summary>
-        /// Free unmanaged resources
-        /// </summary>
-        /// <param name="disposing">Called from Dispose() flag</param>
-        public void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    // TODO: dispose managed state (managed objects).
-                }
-
-                if (this.context != IntPtr.Zero)
-                {
-                    SmartcardInterop.SCardReleaseContext(this.context);
-                }
-                
-                disposedValue = true;
-            }
-        }
-
-        /// <summary>
-        /// Free unmanaged resources
-        /// </summary>
-        public void Dispose()
-        {
-            Dispose(true);
-        }
-        #endregion
     }
 }
