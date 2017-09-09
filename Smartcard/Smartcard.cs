@@ -5,12 +5,17 @@
     using System.Security.Cryptography.X509Certificates;
     using System.Text;
 
+    using Common.Logging;
+
     /// <summary>
     /// Handle smartcard interactions
     /// </summary>
     /// <inheritdoc cref="IDisposable"/>
     public sealed class Smartcard : IDisposable
     {
+        /// <summary>Log manager</summary>
+        private readonly ILog logger = LogManager.GetLogger(typeof(Smartcard));
+
         /// <summary>Smartcard property: root container identifier</summary>
         private readonly string smartcardRootContainer;
 
@@ -36,6 +41,7 @@
         /// <param name="cardname">Type name of the smartcard in the reader</param>
         public Smartcard(string reader, string cardname)
         {
+            this.logger.DebugFormat("Creating smartcard handler for {0} in reader {1}", cardname, reader);
             this.smartcardRootContainer = @"\\.\" + reader + @"\";
 
             this.ReaderName = reader;
@@ -74,7 +80,9 @@
                 var success = SmartcardInterop.CryptGetProvParam(this.cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, null, out var certStoreLen, 0);
                 if (!success)
                 {
-                    throw new SmartcardException(Marshal.GetLastWin32Error());
+                    var err = Marshal.GetLastWin32Error();
+                    this.logger.DebugFormat("Failed to get smartcard cert store crypto context; error 0x{0:X}", err);
+                    throw new SmartcardException(err);
                 }
 
                 if (certStoreLen < 1)
@@ -86,7 +94,9 @@
                 success = SmartcardInterop.CryptGetProvParam(this.cardContext, SmartcardInterop.ProviderParamGet.UserCertStore, byteArray, out certStoreLen, 0);
                 if (!success)
                 {
-                    throw new SmartcardException(Marshal.GetLastWin32Error());
+                    var err = Marshal.GetLastWin32Error();
+                    this.logger.DebugFormat("Failed to get smartcard certificate store; error 0x{0:X}", err);
+                    throw new SmartcardException(err);
                 }
 
                 this.certStoreHandle = (IntPtr)BitConverter.ToUInt32(byteArray, 0);
@@ -107,7 +117,9 @@
             var success = SmartcardInterop.CryptSetProvParam(this.cardContext, SmartcardInterop.ProviderParamSet.KeyExchangePin, pinBytes, 0);
             if (!success)
             {
-                throw new SmartcardException(Marshal.GetLastWin32Error());
+                var err = Marshal.GetLastWin32Error();
+                this.logger.DebugFormat("Failed to unlock smartcard; error 0x{0:X}", err);
+                throw new SmartcardException(err);
             }
         }
 
@@ -165,7 +177,9 @@
             var result = SmartcardInterop.SCardGetCardTypeProviderNameW(IntPtr.Zero, cardname, SmartcardInterop.Provider.Csp, provider, out len);
             if (result != SmartcardException.SCardSuccess)
             {
-                throw new SmartcardException(result);
+                var err = Marshal.GetLastWin32Error();
+                this.logger.DebugFormat("Failed to obtain smartcard provider; error 0x{0:X}", err);
+                throw new SmartcardException(err);
             }
 
             return provider.ToString();
@@ -180,11 +194,14 @@
             var success = SmartcardInterop.CryptAcquireContextW(out var context, this.smartcardRootContainer, this.smartcardCryptoProvider, SmartcardInterop.CryptoProvider.RsaFull, 0);
             if (!success)
             {
-                throw new SmartcardException(Marshal.GetLastWin32Error());
+                var err = Marshal.GetLastWin32Error();
+                this.logger.DebugFormat("Failed to obtain smartcard context; error 0x{0:X}", err);
+                throw new SmartcardException(err);
             }
 
             if (this.smartcardCryptoProvider.Length == 0)
             {
+                this.logger.DebugFormat("No provider for card in reader {0}", this.smartcardRootContainer);
                 throw new SmartcardException(SmartcardException.SCardECardUnsupported);
             }
 

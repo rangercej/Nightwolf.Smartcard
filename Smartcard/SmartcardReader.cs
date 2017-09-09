@@ -6,6 +6,8 @@
     using System.Threading;
     using System.Threading.Tasks;
 
+    using Common.Logging;
+
     /// <summary>
     /// Smartcard reader handing and monitoring
     /// </summary>
@@ -18,6 +20,11 @@
         /// </summary>
         private const string NotificationReader = @"\\?PnP?\Notification";
 
+        /// <summary>
+        /// Log manager
+        /// </summary>
+        private ILog logger = LogManager.GetLogger(typeof(SmartcardReader));
+        
         /// <summary>Unmanaged handler to the smartcard reader context</summary>
         private IntPtr readerContext = IntPtr.Zero;
 
@@ -72,11 +79,13 @@
         /// Start monitoring for smartcard changes
         /// </summary>
         /// <param name="ct">Cancellation token to stop monitoring</param>
-        public void StartMonitoring(CancellationToken ct)
+        /// <returns>False is a monitor is already running; true otherwise</returns>
+        public bool StartMonitoring(CancellationToken ct)
         {
             if (this.monitorTask != null)
             {
-                return;
+                this.logger.Debug("Monitoring currently active.");
+                return false;
             }
 
             if (this.currentState != null)
@@ -89,10 +98,11 @@
             }
 
             this.cancelToken = ct;
-
             this.cancelToken.Register(this.StopMonitoring);
             this.monitorTask = Task.Factory.StartNew(this.WaitForReaderStateChange, this.cancelToken);
             this.IsMonitoring = true;
+            this.logger.Debug("Smartcard monitoring started.");
+            return true;
         }
 
         #region IDisposable Support
@@ -130,14 +140,14 @@
         /// </summary>
         private void StopMonitoring()
         {
-            System.Diagnostics.Debug.Print("Stopping monitoring");
+            this.logger.Debug("Stopping monitoring");
 
             if (this.monitorTask == null)
             {
                 return;
             }
 
-            System.Diagnostics.Debug.Print("Cancelling requests");
+            this.logger.Debug("Cancelling requests");
             SmartcardInterop.SCardCancel(this.readerContext);
             this.monitorTask.Wait();
             this.monitorTask = null;
@@ -157,6 +167,7 @@
             var result = SmartcardInterop.SCardEstablishContext(SmartcardInterop.Scope.User, IntPtr.Zero, IntPtr.Zero, out this.readerContext);
             if (result != SmartcardException.SCardSuccess)
             {
+                this.logger.ErrorFormat("Failed to create smartcard context, result = 0x{0:X}", result);
                 throw new SmartcardException(result);
             }
 
@@ -175,6 +186,7 @@
             var scard = new Smartcard(state.reader, cardname);
             var args = new SmartcardEventArgs(scard, state.reader);
 
+            this.logger.DebugFormat("Firing card insert event for reader {0}, card {1}", state.reader, cardname);
             this.OnCardInserted?.Invoke(this, args);
         }
 
@@ -186,6 +198,7 @@
         {
             var args = new SmartcardEventArgs(null, state.reader);
 
+            this.logger.DebugFormat("Firing card removed event for reader {0}", state.reader);
             this.OnCardRemoved?.Invoke(this, args);
         }
 
@@ -201,10 +214,20 @@
             var result = SmartcardInterop.SCardListReadersW(this.readerContext, null, readers, out readerLen);
             if (result != SmartcardException.SCardSuccess && result != SmartcardException.SCardENoReadersAvailable)
             {
+                this.logger.ErrorFormat("Failed to fetch smartcard readers, result = 0x{0:X}", result);
                 throw new SmartcardException(result);
             }
 
             var r = SmartcardInterop.MultiStringToArray(readers);
+            if (this.logger.IsDebugEnabled)
+            {
+                this.logger.DebugFormat("Known readers; count = {0}", r.Count);
+                foreach (var reader in r)
+                {
+                    this.logger.DebugFormat("    {0}", reader);
+                }
+            }
+
             return r.ToList();
         }
 
@@ -220,10 +243,20 @@
             var result = SmartcardInterop.SCardListCardsW(this.readerContext, null, IntPtr.Zero, 0, cards, out cardLen);
             if (result != SmartcardException.SCardSuccess)
             {
+                this.logger.ErrorFormat("Failed to fetch smartcard names, result = 0x{0:X}", result);
                 throw new SmartcardException(result);
             }
 
             var c = SmartcardInterop.MultiStringToArray(cards);
+            if (this.logger.IsDebugEnabled)
+            {
+                this.logger.DebugFormat("Known cards; count = {0}", c.Count);
+                foreach (var card in c)
+                {
+                    this.logger.DebugFormat("    {0}", card);
+                }
+            }
+
             return c.ToList();
         }
 
@@ -271,6 +304,7 @@
                 var result = SmartcardInterop.SCardLocateCards(this.readerContext, d, scardstate, scardstate.Length);
                 if (result != SmartcardException.SCardSuccess)
                 {
+                    this.logger.ErrorFormat("Failed to fetch smartcard state, result = 0x{0:X}", result);
                     throw new SmartcardException(result);
                 }
             }
@@ -320,13 +354,13 @@
                 try
                 {
                     i++;
-                    System.Diagnostics.Debug.Print(DateTime.Now + ": StateChange - start: " + i + "; last status = 0x" + result.ToString("X"));
+                    this.logger.Debug(DateTime.Now + ": StateChange - start: " + i + "; last status = 0x" + result.ToString("X"));
 
                     var scardstate = this.currentState.ToArray();
                     result = SmartcardInterop.SCardGetStatusChange(this.readerContext, SmartcardInterop.Infinite, scardstate, scardstate.Length);
                     if (this.cancelToken.IsCancellationRequested || result == SmartcardException.SCardECancelled)
                     {
-                        System.Diagnostics.Debug.Print("Cancellation requested");
+                        this.logger.Debug("Cancellation requested");
                         break;
                     }
 
@@ -335,7 +369,7 @@
                         continue;
                     }
 
-                    System.Diagnostics.Debug.Print(DateTime.Now + ": StateChange - result: 0x" + result.ToString("X"));
+                    this.logger.Debug(DateTime.Now + ": StateChange - result: 0x" + result.ToString("X"));
                     var scardstatelist = scardstate.ToList();
 
                     // If the service has stopped, then we need to flag all existing cards as removed
@@ -349,7 +383,7 @@
                     // All other errors, throw an exception
                     if (result != SmartcardException.SCardSuccess)
                     {
-                        System.Diagnostics.Debug.Print("Exception happened: " + result);
+                        this.logger.DebugFormat("Failed to get smartcard state: error 0x{0}", result);
                         throw new SmartcardException(result);
                     }
 
@@ -372,6 +406,7 @@
                 {
                     if (ex.Status == SmartcardException.SCardEServiceStopped || ex.Status == SmartcardException.SCardENoService)
                     {
+                        this.logger.Debug("Smartcard service stopped; resetting context");
                         this.ResetContext();
                         this.currentState.Add(awaitNewReader);
                     }
@@ -382,7 +417,7 @@
                 }
             }
 
-            System.Diagnostics.Debug.Print("Monitoring stopped.");
+            this.logger.Debug("Monitoring stopped.");
         }
 
         /// <summary>
@@ -552,6 +587,7 @@
             var result = SmartcardInterop.SCardListCardsW(IntPtr.Zero, atr, IntPtr.Zero, 0, cards, out cardLen);
             if (result != SmartcardException.SCardSuccess)
             {
+                this.logger.DebugFormat("Failed to find smartcard by ATR: error 0x{0}", result);
                 throw new SmartcardException(result);
             }
 
@@ -573,11 +609,16 @@
         /// Dump a list of states to the debug console
         /// </summary>
         /// <param name="states">States to dump</param>
-        private void DumpState(List<SmartcardInterop.ScardReaderState> states)
+        private void DumpState(IEnumerable<SmartcardInterop.ScardReaderState> states)
         {
+            if (!this.logger.IsDebugEnabled)
+            {
+                return;
+            }
+
             foreach (var s in states)
             {
-                System.Diagnostics.Debug.Print(s.reader + ": " + s.currentState + " => " + s.eventState);
+                this.logger.DebugFormat("{0}: {1} => {2}", s.reader, s.currentState, s.eventState);
             }
         }
     }
