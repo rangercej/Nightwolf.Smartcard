@@ -76,6 +76,11 @@
         }
 
         /// <summary>
+        /// Gets the waitable event that triggers when monitoring stops
+        /// </summary>
+        public ManualResetEvent MonitoringStoppedTrigger { get; private set; }
+
+        /// <summary>
         /// Start monitoring for smartcard changes
         /// </summary>
         /// <param name="ct">Cancellation token to stop monitoring</param>
@@ -97,11 +102,19 @@
                 }
             }
 
+            this.MonitoringStoppedTrigger = new ManualResetEvent(false);
             this.cancelToken = ct;
             this.cancelToken.Register(this.StopMonitoring);
             this.monitorTask = Task.Factory.StartNew(this.WaitForReaderStateChange, this.cancelToken);
+            this.monitorTask.ContinueWith(task =>
+                {
+                    this.IsMonitoring = false;
+                    this.MonitoringStoppedTrigger.Set();
+                });
+
             this.IsMonitoring = true;
             this.logger.Debug("Smartcard monitoring started.");
+
             return true;
         }
 
@@ -151,7 +164,6 @@
             SmartcardInterop.SCardCancel(this.readerContext);
             this.monitorTask.Wait();
             this.monitorTask = null;
-            this.IsMonitoring = false;
         }
 
         /// <summary>

@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<certificates>
+  <certificate subject="E=cej@nightwolf.org.uk">
+    <action target="BitLocker">
+      <add name="target" value="f:" />
+    </action>
+    <action target="LockWorkstation" />
+    <action target="PowershellScript">
+      <add name="script" value="c:\temp\test.ps1" />
+    </action>
+  </certificate>
+  <certificate subject="E=cej@nightwolf.org.uk">
+    <action target="BitLocker">
+      <add name="target" value="f:" />
+    </action>
+    <action target="LockWorkstation" />
+    <action target="PowershellScript">
+      <add name="script" value="c:\temp\test.ps1" />
+    </action>
+  </certificate>
+</certificates>
