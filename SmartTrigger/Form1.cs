@@ -3,27 +3,30 @@
 namespace SmartTrigger
 {
     using System;
-    using System.Collections.Generic;
-    using System.ComponentModel;
-    using System.Data;
     using System.Drawing;
-    using System.Linq;
-    using System.Text;
     using System.Threading;
-    using System.Threading.Tasks;
     using System.Windows.Forms;
-    using System.Windows.Forms.VisualStyles;
 
     using Nightwolf.Smartcard;
 
+    /// <summary>
+    /// Smartcard trigger and actions
+    /// </summary>
+    /// <inheritdoc cref="Form"/>
     public partial class ScPinWindow : Form
     {
+        /// <summary>Smartcard monitor class</summary>
+        private readonly SmartcardReader smartcardMonitor;
+
+        /// <summary>Notification tray icon</summary>
         private NotifyIcon trayIcon;
 
+        /// <summary>Smartcard monitor cancellation</summary>
         private CancellationTokenSource monitorCancellationToken;
 
-        private SmartcardReader smartcardMonitor;
-
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ScPinWindow"/> class. 
+        /// </summary>
         public ScPinWindow()
         {
             InitializeComponent();
@@ -33,6 +36,11 @@ namespace SmartTrigger
             this.smartcardMonitor.OnCardRemoved += this.CardRemovedEventHandler;
         }
 
+        /// <summary>
+        /// Form load event handler
+        /// </summary>
+        /// <param name="e">Event parameters</param>
+        /// <inheritdoc cref="OnLoad(EventArgs)"/>
         protected override void OnLoad(EventArgs e)
         {
             this.trayIcon = new NotifyIcon
@@ -51,6 +59,10 @@ namespace SmartTrigger
             this.smartcardMonitor.StartMonitoring(this.monitorCancellationToken.Token);
         }
 
+        /// <summary>
+        /// Smartcard inserted handler
+        /// </summary>
+        /// <param name="e">Smartcard event args</param>
         private void DoCardInserted(SmartcardEventArgs e)
         {
             this.Visible = true;
@@ -58,6 +70,10 @@ namespace SmartTrigger
             this.Focus();
         }
 
+        /// <summary>
+        /// Smartcard removed handler
+        /// </summary>
+        /// <param name="e">Smartcard event args</param>
         private void DoCardRemoved(SmartcardEventArgs e)
         {
             if (this.Visible)
@@ -67,6 +83,11 @@ namespace SmartTrigger
             }
         }
 
+        /// <summary>
+        /// When form is minimised, hide it from the taskbar
+        /// </summary>
+        /// <param name="sender">Event sender</param>
+        /// <param name="e">Resize parameters</param>
         private void ScPinWindow_Resize(object sender, EventArgs e)
         {
             if (this.WindowState == FormWindowState.Minimized)
@@ -76,6 +97,11 @@ namespace SmartTrigger
             }
         }
 
+        /// <summary>
+        /// When form is closed, cleanly shutdown the smartcard monitor
+        /// </summary>
+        /// <param name="sender">Event sender</param>
+        /// <param name="e">Form close parameters</param>
         private void ScPinWindow_FormClosing(object sender, FormClosingEventArgs e)
         {
             if (this.smartcardMonitor.IsMonitoring)
