@@ -6,8 +6,8 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{83F2982B-F9DD-440C-8D23-7B1F27D5C7F5}</ProjectGuid>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>SmartTrigger</RootNamespace>
-    <AssemblyName>SmartTrigger</AssemblyName>
+    <RootNamespace>Nightwolf.SmartTrigger</RootNamespace>
+    <AssemblyName>Nightwolf.SmartTrigger</AssemblyName>
     <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -34,19 +34,24 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
     <Reference Include="System.Drawing" />
-    <Reference Include="System.Net.Http" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConfigSettings.cs" />
+    <Compile Include="Config\Parameter.cs" />
+    <Compile Include="Config\Action.cs" />
+    <Compile Include="Config\ParameterCollection.cs" />
+    <Compile Include="Config\Certificate.cs" />
+    <Compile Include="Config\ActionCollection.cs" />
+    <Compile Include="Config\CertificateCollection.cs" />
+    <Compile Include="Config\Smartcard.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -88,7 +93,9 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="App.config" />
+    <None Include="App.config">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Smartcard\Smartcard.csproj">
@@ -105,5 +112,6 @@
   <ItemGroup>
     <Content Include="XMLFile1.xml" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

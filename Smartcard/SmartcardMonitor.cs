@@ -12,7 +12,7 @@
     /// Smartcard reader handing and monitoring
     /// </summary>
     /// <inheritdoc cref="IDisposable"/>
-    public sealed class SmartcardReader : IDisposable
+    public sealed class SmartcardMonitor : IDisposable
     {
         /// <summary>
         /// Name of "smartcard" type to get notified of new smartcards attached to the 
@@ -23,7 +23,7 @@
         /// <summary>
         /// Log manager
         /// </summary>
-        private ILog logger = LogManager.GetLogger(typeof(SmartcardReader));
+        private ILog logger = LogManager.GetLogger(typeof(SmartcardMonitor));
         
         /// <summary>Unmanaged handler to the smartcard reader context</summary>
         private IntPtr readerContext = IntPtr.Zero;
@@ -47,9 +47,9 @@
         private bool disposedValue;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="SmartcardReader"/> class. 
+        /// Initializes a new instance of the <see cref="SmartcardMonitor"/> class. 
         /// </summary>
-        public SmartcardReader()
+        public SmartcardMonitor()
         {
             this.monitorTask = null;
             this.IsMonitoring = false;

@@ -1,4 +1,4 @@
-﻿namespace SmartTrigger
+﻿namespace Nightwolf.SmartTrigger
 {
     partial class ScPinWindow
     {

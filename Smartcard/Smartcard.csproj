@@ -59,7 +59,7 @@
     <Compile Include="SmartcardEventArgs.cs" />
     <Compile Include="SmartcardException.cs" />
     <Compile Include="SmartcardInterop.cs" />
-    <Compile Include="SmartcardReader.cs" />
+    <Compile Include="SmartcardMonitor.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

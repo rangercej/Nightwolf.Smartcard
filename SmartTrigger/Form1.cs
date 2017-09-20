@@ -1,8 +1,9 @@
 ﻿// <div>Icons made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></div>
 
-namespace SmartTrigger
+namespace Nightwolf.SmartTrigger
 {
     using System;
+    using System.Configuration;
     using System.Drawing;
     using System.Threading;
     using System.Windows.Forms;
@@ -16,7 +17,7 @@ namespace SmartTrigger
     public partial class ScPinWindow : Form
     {
         /// <summary>Smartcard monitor class</summary>
-        private readonly SmartcardReader smartcardMonitor;
+        private readonly SmartcardMonitor smartcardMonitor;
 
         /// <summary>Notification tray icon</summary>
         private NotifyIcon trayIcon;
@@ -27,13 +28,17 @@ namespace SmartTrigger
         /// <summary>
         /// Initializes a new instance of the <see cref="ScPinWindow"/> class. 
         /// </summary>
+        /// <inheritdoc cref="Form()"/>
         public ScPinWindow()
         {
-            InitializeComponent();
+            this.InitializeComponent();
 
-            this.smartcardMonitor = new SmartcardReader();
+            var cfg = (Config.Smartcard)ConfigurationManager.GetSection("smartcard");
+
+            this.smartcardMonitor = new SmartcardMonitor();
             this.smartcardMonitor.OnCardInserted += this.CardInsertedEventHandler;
             this.smartcardMonitor.OnCardRemoved += this.CardRemovedEventHandler;
+
         }
 
         /// <summary>
@@ -109,6 +114,8 @@ namespace SmartTrigger
                 this.monitorCancellationToken.Cancel();
                 this.smartcardMonitor.MonitoringStoppedTrigger.WaitOne();
             }
+
+            this.trayIcon.Dispose();
         }
 
         #region Smartcard Event Handlers
