@@ -4,7 +4,7 @@ using System.Configuration;
 namespace Nightwolf.SmartTrigger.Config
 {
     [ConfigurationCollection(typeof(Certificate), AddItemName="add", CollectionType = ConfigurationElementCollectionType.BasicMap)]
-    internal class ParameterCollection : ConfigurationElementCollection
+    internal class ParameterCollection : ConfigurationElementCollection, IEnumerable<Parameter>
     {
         public Parameter this[int index]
         {

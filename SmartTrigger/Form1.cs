@@ -5,6 +5,7 @@ namespace Nightwolf.SmartTrigger
     using System;
     using System.Configuration;
     using System.Drawing;
+    using System.Linq;
     using System.Threading;
     using System.Windows.Forms;
 
@@ -19,11 +20,17 @@ namespace Nightwolf.SmartTrigger
         /// <summary>Smartcard monitor class</summary>
         private readonly SmartcardMonitor smartcardMonitor;
 
+        /// <summary>app.config configuration</summary>
+        private readonly Config.Smartcard configuration;
+
         /// <summary>Notification tray icon</summary>
         private NotifyIcon trayIcon;
 
         /// <summary>Smartcard monitor cancellation</summary>
         private CancellationTokenSource monitorCancellationToken;
+
+        /// <summary>Actions to process</summary>
+        private ActionProcessor processor;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ScPinWindow"/> class. 
@@ -33,7 +40,7 @@ namespace Nightwolf.SmartTrigger
         {
             this.InitializeComponent();
 
-            var cfg = (Config.Smartcard)ConfigurationManager.GetSection("smartcard");
+            this.configuration = (Config.Smartcard)ConfigurationManager.GetSection("smartcard");
 
             this.smartcardMonitor = new SmartcardMonitor();
             this.smartcardMonitor.OnCardInserted += this.CardInsertedEventHandler;
@@ -70,9 +77,42 @@ namespace Nightwolf.SmartTrigger
         /// <param name="e">Smartcard event args</param>
         private void DoCardInserted(SmartcardEventArgs e)
         {
-            this.Visible = true;
-            this.ShowInTaskbar = true;
-            this.Focus();
+            // If there's an active processor, wait for it to complete processing
+            this.processor?.Wait();
+
+            this.processor = new ActionProcessor();
+
+            // Find matching actions
+            foreach (var cardCert in e.SmartCard.CertificateStore.Certificates)
+            {
+                var subj = cardCert.Subject;
+                var certs = this.configuration.Certificates.Where(x => x.Subject == subj).ToList();
+
+                foreach (var cert in certs)
+                {
+                    var insertActions = cert.Actions.Where(action => (action.OnEvent & Config.Action.SmartcardAction.Insert) != 0);
+                    this.processor.AddActions(e.SmartCard, cert.Subject, insertActions);
+                }
+            }
+
+            // Any actions allocated to this smartcard?
+            if (this.processor.ActionCount == 0)
+            {
+                this.processor.Reset();
+                return;
+            }
+
+            // Do any actions want the PIN?
+            if (this.processor.PinRequired)
+            {
+                this.Visible = true;
+                this.ShowInTaskbar = true;
+                this.Focus();
+            }
+            else
+            {
+                this.processor.ProcessInsertActions(null);
+            }
         }
 
         /// <summary>
@@ -142,5 +182,9 @@ namespace Nightwolf.SmartTrigger
 
         #endregion
 
+        private void btnUnlock_Click(object sender, EventArgs e)
+        {
+            this.processor.ProcessInsertActions(this.textPin.Text);
+        }
     }
 }

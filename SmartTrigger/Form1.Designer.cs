@@ -57,6 +57,7 @@
             this.btnUnlock.TabIndex = 2;
             this.btnUnlock.Text = "Unlock";
             this.btnUnlock.UseVisualStyleBackColor = true;
+            this.btnUnlock.Click += new System.EventHandler(this.btnUnlock_Click);
             // 
             // ScPinWindow
             // 

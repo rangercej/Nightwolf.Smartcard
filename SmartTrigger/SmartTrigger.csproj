@@ -44,6 +44,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ActionProcessor.cs" />
+    <Compile Include="Action\Bitlocker.cs" />
+    <Compile Include="Action\ActionBase.cs" />
     <Compile Include="ConfigSettings.cs" />
     <Compile Include="Config\Parameter.cs" />
     <Compile Include="Config\Action.cs" />
