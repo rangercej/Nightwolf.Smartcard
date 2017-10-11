@@ -25,7 +25,7 @@
         /// </summary>
         private readonly ILog logger = LogManager.GetLogger(typeof(SmartcardMonitor));
 
-        /// <summary>Track smartcard </summary>
+        /// <summary>Track event-firing state for each reader</summary>
         private readonly Dictionary<string, CardEvent> debouncer = new Dictionary<string, CardEvent>();
 
         /// <summary>Unmanaged handler to the smartcard reader context</summary>
