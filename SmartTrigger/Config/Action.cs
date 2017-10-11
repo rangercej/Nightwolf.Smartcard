@@ -61,7 +61,7 @@
         [ConfigurationProperty("requirepin", IsRequired = false)]
         internal bool PinRequired
         {
-            get => bool.Parse((string)this["requirepin"]);
+            get => (bool)this["requirepin"];
         }
     }
 }

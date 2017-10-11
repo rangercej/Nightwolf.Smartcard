@@ -20,7 +20,7 @@ namespace Nightwolf.SmartTrigger.Action
         {
             if (actionHandlers == null)
             {
-                actionHandlers = new Dictionary<string, ActionBase>();
+                actionHandlers = new Dictionary<string, ActionBase>(StringComparer.OrdinalIgnoreCase);
 
                 var targetHandlers = AppDomain.CurrentDomain.GetAssemblies()
                     .SelectMany(t => t.GetTypes())
@@ -33,7 +33,7 @@ namespace Nightwolf.SmartTrigger.Action
                     if (!string.IsNullOrEmpty(actionType?.Name))
                     {
                         var handlerClass = (ActionBase)Activator.CreateInstance(handler);
-                        actionHandlers.Add(actionType.Name, handlerClass);
+                        actionHandlers.Add((string)actionType.GetValue(null), handlerClass);
                     }
                 }
             }

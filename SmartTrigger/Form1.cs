@@ -90,7 +90,7 @@ namespace Nightwolf.SmartTrigger
 
                 foreach (var cert in certs)
                 {
-                    var insertActions = cert.Actions.Where(action => (action.OnEvent & Config.Action.SmartcardAction.Insert) != 0);
+                    var insertActions = cert.Actions.Where(action => (action.OnEvent & Config.Action.SmartcardAction.Insert) == Config.Action.SmartcardAction.Insert);
                     this.processor.AddActions(e.SmartCard, cert.Subject, insertActions);
                 }
             }
@@ -126,6 +126,33 @@ namespace Nightwolf.SmartTrigger
                 this.Visible = false;
                 this.ShowInTaskbar = false;
             }
+
+            // If there's an active processor, wait for it to complete processing
+            this.processor?.Wait();
+
+            this.processor = new ActionProcessor();
+
+            // Find matching actions
+            foreach (var cardCert in e.SmartCard.CertificateStore.Certificates)
+            {
+                var subj = cardCert.Subject;
+                var certs = this.configuration.Certificates.Where(x => x.Subject == subj).ToList();
+
+                foreach (var cert in certs)
+                {
+                    var insertActions = cert.Actions.Where(action => (action.OnEvent & Config.Action.SmartcardAction.Remove) == Config.Action.SmartcardAction.Remove);
+                    this.processor.AddActions(e.SmartCard, cert.Subject, insertActions);
+                }
+            }
+
+            // Any actions allocated to this smartcard?
+            if (this.processor.ActionCount == 0)
+            {
+                this.processor.Reset();
+                return;
+            }
+
+            this.processor.ProcessRemoveActions();
         }
 
         /// <summary>
@@ -184,6 +211,8 @@ namespace Nightwolf.SmartTrigger
 
         private void btnUnlock_Click(object sender, EventArgs e)
         {
+            this.Visible = false;
+            this.ShowInTaskbar = false;
             this.processor.ProcessInsertActions(this.textPin.Text);
         }
     }
