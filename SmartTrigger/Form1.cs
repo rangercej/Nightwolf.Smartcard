@@ -1,5 +1,7 @@
 ﻿// <div>Icons made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></div>
 
+using System.Collections.Generic;
+
 namespace Nightwolf.SmartTrigger
 {
     using System;
@@ -19,6 +21,9 @@ namespace Nightwolf.SmartTrigger
     {
         /// <summary>Smartcard monitor class</summary>
         private readonly SmartcardMonitor smartcardMonitor;
+
+        /// <summary>Cache of certificate subjects associated with a reader</summary>
+        private readonly Dictionary<string, List<string>> certificateCache;
 
         /// <summary>app.config configuration</summary>
         private readonly Config.Smartcard configuration;
@@ -46,6 +51,7 @@ namespace Nightwolf.SmartTrigger
             this.smartcardMonitor.OnCardInserted += this.CardInsertedEventHandler;
             this.smartcardMonitor.OnCardRemoved += this.CardRemovedEventHandler;
 
+            this.certificateCache = new Dictionary<string, List<string>>();
         }
 
         /// <summary>
@@ -82,18 +88,23 @@ namespace Nightwolf.SmartTrigger
 
             this.processor = new ActionProcessor();
 
+            var certList = new List<string>();
+
             // Find matching actions
             foreach (var cardCert in e.SmartCard.CertificateStore.Certificates)
             {
                 var subj = cardCert.Subject;
-                var certs = this.configuration.Certificates.Where(x => x.Subject == subj).ToList();
+                var certActions = this.configuration.Certificates.Where(x => x.Subject == subj).ToList();
+                certList.Add(subj);
 
-                foreach (var cert in certs)
+                foreach (var action in certActions)
                 {
-                    var insertActions = cert.Actions.Where(action => (action.OnEvent & Config.Action.SmartcardAction.Insert) == Config.Action.SmartcardAction.Insert);
-                    this.processor.AddActions(e.SmartCard, cert.Subject, insertActions);
+                    var insertActions = action.Actions.Where(act => (act.OnEvent & Config.Action.SmartcardAction.Insert) == Config.Action.SmartcardAction.Insert);
+                    this.processor.AddActions(e.SmartCard, action.Subject, insertActions);
                 }
             }
+
+            this.certificateCache.Add(e.ReaderName, certList);
 
             // Any actions allocated to this smartcard?
             if (this.processor.ActionCount == 0)
@@ -132,16 +143,17 @@ namespace Nightwolf.SmartTrigger
 
             this.processor = new ActionProcessor();
 
-            // Find matching actions
-            foreach (var cardCert in e.SmartCard.CertificateStore.Certificates)
-            {
-                var subj = cardCert.Subject;
-                var certs = this.configuration.Certificates.Where(x => x.Subject == subj).ToList();
+            var certs = this.certificateCache[e.ReaderName];
 
-                foreach (var cert in certs)
+            // Find matching actions
+            foreach (var subj in certs)
+            {
+                var certActions = this.configuration.Certificates.Where(x => x.Subject == subj).ToList();
+
+                foreach (var action in certActions)
                 {
-                    var insertActions = cert.Actions.Where(action => (action.OnEvent & Config.Action.SmartcardAction.Remove) == Config.Action.SmartcardAction.Remove);
-                    this.processor.AddActions(e.SmartCard, cert.Subject, insertActions);
+                    var removeActions = action.Actions.Where(act => (act.OnEvent & Config.Action.SmartcardAction.Remove) == Config.Action.SmartcardAction.Remove);
+                    this.processor.AddActions(e.SmartCard, action.Subject, removeActions);
                 }
             }
 
@@ -149,10 +161,13 @@ namespace Nightwolf.SmartTrigger
             if (this.processor.ActionCount == 0)
             {
                 this.processor.Reset();
-                return;
+            }
+            else
+            {
+                this.processor.ProcessRemoveActions();
             }
 
-            this.processor.ProcessRemoveActions();
+            this.certificateCache.Remove(e.ReaderName);
         }
 
         /// <summary>
