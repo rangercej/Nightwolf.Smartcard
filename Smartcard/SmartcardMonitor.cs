@@ -23,8 +23,11 @@
         /// <summary>
         /// Log manager
         /// </summary>
-        private ILog logger = LogManager.GetLogger(typeof(SmartcardMonitor));
-        
+        private readonly ILog logger = LogManager.GetLogger(typeof(SmartcardMonitor));
+
+        /// <summary>Track smartcard </summary>
+        private readonly Dictionary<string, CardEvent> debouncer = new Dictionary<string, CardEvent>();
+
         /// <summary>Unmanaged handler to the smartcard reader context</summary>
         private IntPtr readerContext = IntPtr.Zero;
 
@@ -45,6 +48,13 @@
 
         /// <summary>Disposing flag to detect redundant Dispose calls</summary>
         private bool disposedValue;
+
+        /// <summary>Basic card events</summary>
+        private enum CardEvent
+        {
+            Insert,
+            Remove
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SmartcardMonitor"/> class. 
@@ -194,6 +204,11 @@
         /// <param name="state">State class containing the smartcard reader name</param>
         private void FireCardPresentEvent(SmartcardInterop.ScardReaderState state)
         {
+            if (this.DebounceState(state.reader, CardEvent.Insert))
+            {
+                return;
+            }
+
             var cardname = this.FindCardWithAtr(state.atr);
             var scard = new Smartcard(state.reader, cardname);
             var args = new SmartcardEventArgs(scard, state.reader);
@@ -208,6 +223,11 @@
         /// <param name="state">State class containing the smartcard reader name</param>
         private void FireCardRemovedEvent(SmartcardInterop.ScardReaderState state)
         {
+            if (this.DebounceState(state.reader, CardEvent.Remove))
+            {
+                return;
+            }
+
             var args = new SmartcardEventArgs(null, state.reader);
 
             this.logger.DebugFormat("Firing card removed event for reader {0}", state.reader);
@@ -632,6 +652,37 @@
             {
                 this.logger.DebugFormat("{0}: {1} => {2}", s.reader, s.currentState, s.eventState);
             }
+        }
+
+        /// <summary>
+        /// Debounce card event state.
+        /// </summary>
+        /// <param name="readerName">Reader for which we're debouncing events</param>
+        /// <param name="eventToQuash">Which event we should quash</param>
+        /// <returns>True if event debounced; false otherwise</returns>
+        /// <remarks>
+        /// Card state can change for things like Locked and InUse flags
+        /// so we don't want to fire the insert event for those.
+        /// </remarks>
+        private bool DebounceState(string readerName, CardEvent eventToQuash)
+        {
+            // Debounce state. Card state can change for things like Locked and InUse flags
+            // so we don't want to fire the insert event for those.
+            if (this.debouncer.ContainsKey(readerName))
+            {
+                if (this.debouncer[readerName] == eventToQuash)
+                {
+                    return true;
+                }
+
+                this.debouncer[readerName] = eventToQuash;
+            }
+            else
+            {
+                this.debouncer.Add(readerName, eventToQuash);
+            }
+
+            return false;
         }
     }
 }
