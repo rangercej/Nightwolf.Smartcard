@@ -22,13 +22,15 @@ namespace Nightwolf.SmartTrigger.Action
             {
                 actionHandlers = new Dictionary<string, ActionBase>();
 
-                var targetHandlers = AppDomain.CurrentDomain.GetAssemblies().SelectMany(t => t.GetTypes())
-                    .Where(t => t.IsClass && t.Namespace == "Nightwolf.SmartTrigger.Action");
+                var targetHandlers = AppDomain.CurrentDomain.GetAssemblies()
+                    .SelectMany(t => t.GetTypes())
+                    .Where(t => t.IsClass && t.Namespace == "Nightwolf.SmartTrigger.Action").ToList();
 
                 foreach (var handler in targetHandlers)
                 {
-                    var actionType = handler.GetFields(BindingFlags.Static).First(f => f.Name == "ActionId");
-                    if (actionType.Name != string.Empty)
+                    var fields = handler.GetFields(BindingFlags.Static | BindingFlags.NonPublic);
+                    var actionType = fields.FirstOrDefault(f => f.Name == "ActionId");
+                    if (!string.IsNullOrEmpty(actionType?.Name))
                     {
                         var handlerClass = (ActionBase)Activator.CreateInstance(handler);
                         actionHandlers.Add(actionType.Name, handlerClass);
