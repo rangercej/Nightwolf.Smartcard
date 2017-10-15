@@ -4,6 +4,7 @@
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
     using System.Linq;
+    using System.Security.Cryptography.X509Certificates;
     using System.Threading;
 
     using Common.Logging;
@@ -45,7 +46,7 @@
             }
         }
 
-        internal void AddAction(Smartcard.Smartcard scard, string certSubject, Config.Action action)
+        internal void AddAction(Smartcard.Smartcard scard, X509Certificate2 cert, Config.Action action)
         {
             if (this.processingCompleted.WaitOne(0))
             {
@@ -55,12 +56,12 @@
             this.targetActions.Add(new ActionProperties
                                  {
                                      TargetSmartcard = scard,
-                                     TargetSubject = certSubject,
+                                     TargetCertificate = cert,
                                      Action = action
                                  });
         }
 
-        internal void AddActions(Smartcard.Smartcard scard, string certSubject, IEnumerable<Config.Action> actions)
+        internal void AddActions(Smartcard.Smartcard scard, X509Certificate2 cert, IEnumerable<Config.Action> actions)
         {
             if (this.processingCompleted.WaitOne(0))
             {
@@ -69,7 +70,7 @@
 
             foreach (var act in actions)
             {
-                this.AddAction(scard, certSubject, act);
+                this.AddAction(scard, cert, act);
             }
         }
 
@@ -88,7 +89,7 @@
                     this.logger.DebugFormat("Fire: {0}", act.Action.Target);
                     this.actionHandlers[act.Action.Target].PerformInsertAction(
                         act.TargetSmartcard,
-                        act.TargetSubject,
+                        act.TargetCertificate,
                         pin,
                         act.Action.Parameters.ToList());
                 }
@@ -134,7 +135,7 @@
         {
             internal Smartcard.Smartcard TargetSmartcard;
 
-            internal string TargetSubject;
+            internal X509Certificate2 TargetCertificate;
 
             internal Config.Action Action;
         }

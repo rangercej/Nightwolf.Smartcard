@@ -4,6 +4,7 @@
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
     using System.Linq;
+    using System.Security.Cryptography.X509Certificates;
 
     using Nightwolf.Smartcard;
 
@@ -51,11 +52,11 @@
         /// Insert action method signature
         /// </summary>
         /// <param name="scard">Smartcard object where the insert is being performed</param>
-        /// <param name="targetCertSubject">Certificate subject that started this action</param>
+        /// <param name="targetCert">Certificate that started this action</param>
         /// <param name="pin">PIN number for smartcard</param>
         /// <param name="parameters">Parameters for the action</param>
         /// <returns>True on action success, false otherwise</returns>
-        internal virtual bool PerformInsertAction(Smartcard scard, string targetCertSubject, string pin, IList<Config.Parameter> parameters)
+        internal virtual bool PerformInsertAction(Smartcard scard, X509Certificate2 targetCert, string pin, IList<Config.Parameter> parameters)
         {
             return true;
         }
