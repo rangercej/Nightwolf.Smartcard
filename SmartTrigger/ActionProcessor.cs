@@ -12,25 +12,25 @@
 
     internal sealed class ActionProcessor
     {
-        private readonly List<ActionProperties> actions;
+        private readonly List<ActionProperties> targetActions;
 
         private readonly ManualResetEvent processingCompleted;
 
         private readonly ReadOnlyDictionary<string, ActionBase> actionHandlers;
 
-        private bool? pinRequired;
+        private readonly ILog logger = LogManager.GetLogger(typeof(ActionProcessor));
 
-        private ILog logger = LogManager.GetLogger(typeof(ActionProcessor));
+        private bool? pinRequired;
 
         internal ActionProcessor()
         {
-            this.actions = new List<ActionProperties>();
+            this.targetActions = new List<ActionProperties>();
             this.processingCompleted = new ManualResetEvent(false);
             this.actionHandlers = ActionBase.GetHandlers();
             this.pinRequired = null;
         }
 
-        internal int ActionCount => this.actions.Count;
+        internal int ActionCount => this.targetActions.Count;
 
         internal bool PinRequired
         {
@@ -38,29 +38,29 @@
             {
                 if (this.pinRequired == null)
                 {
-                    this.pinRequired = this.actions.Any(x => x.action.PinRequired);
+                    this.pinRequired = this.targetActions.Any(x => x.Action.PinRequired);
                 }
 
                 return this.pinRequired.Value;
             }
         }
 
-        internal void AddAction(Nightwolf.Smartcard.Smartcard scard, string certSubject, Config.Action action)
+        internal void AddAction(Smartcard.Smartcard scard, string certSubject, Config.Action action)
         {
             if (this.processingCompleted.WaitOne(0))
             {
                 throw new OperationCanceledException();
             }
 
-            this.actions.Add(new ActionProperties
+            this.targetActions.Add(new ActionProperties
                                  {
-                                     smartcard = scard,
-                                     targetSubject = certSubject,
-                                     action = action
+                                     TargetSmartcard = scard,
+                                     TargetSubject = certSubject,
+                                     Action = action
                                  });
         }
 
-        internal void AddActions(Nightwolf.Smartcard.Smartcard scard, string certSubject, IEnumerable<Config.Action> actions)
+        internal void AddActions(Smartcard.Smartcard scard, string certSubject, IEnumerable<Config.Action> actions)
         {
             if (this.processingCompleted.WaitOne(0))
             {
@@ -80,17 +80,17 @@
                 throw new OperationCanceledException();
             }
 
-            foreach (var act in this.actions)
+            foreach (var act in this.targetActions)
             {
-                this.logger.DebugFormat("Processing insert action: {0}", act.action.Target);
-                if (this.actionHandlers.ContainsKey(act.action.Target))
+                this.logger.DebugFormat("Processing insert action: {0}", act.Action.Target);
+                if (this.actionHandlers.ContainsKey(act.Action.Target))
                 {
-                    this.logger.DebugFormat("Fire: {0}", act.action.Target);
-                    this.actionHandlers[act.action.Target].PerformInsertAction(
-                        act.smartcard,
-                        act.targetSubject,
+                    this.logger.DebugFormat("Fire: {0}", act.Action.Target);
+                    this.actionHandlers[act.Action.Target].PerformInsertAction(
+                        act.TargetSmartcard,
+                        act.TargetSubject,
                         pin,
-                        act.action.Parameters.ToList());
+                        act.Action.Parameters.ToList());
                 }
             }
 
@@ -104,15 +104,15 @@
                 throw new OperationCanceledException();
             }
 
-            foreach (var act in this.actions)
+            foreach (var act in this.targetActions)
             {
-                this.logger.DebugFormat("Processing insert action: {0}", act.action.Target);
-                if (this.actionHandlers.ContainsKey(act.action.Target))
+                this.logger.DebugFormat("Processing insert action: {0}", act.Action.Target);
+                if (this.actionHandlers.ContainsKey(act.Action.Target))
                 {
-                    this.logger.DebugFormat("Fire: {0}", act.action.Target);
-                    this.actionHandlers[act.action.Target].PerformRemoveAction(
-                        act.smartcard,
-                        act.action.Parameters.ToList());
+                    this.logger.DebugFormat("Fire: {0}", act.Action.Target);
+                    this.actionHandlers[act.Action.Target].PerformRemoveAction(
+                        act.TargetSmartcard,
+                        act.Action.Parameters.ToList());
                 }
             }
 
@@ -121,7 +121,7 @@
 
         internal void Reset()
         {
-            this.actions.Clear();
+            this.targetActions.Clear();
             this.processingCompleted.Set();
         }
 
@@ -132,11 +132,11 @@
 
         internal struct ActionProperties
         {
-            internal Nightwolf.Smartcard.Smartcard smartcard;
+            internal Smartcard.Smartcard TargetSmartcard;
 
-            internal string targetSubject;
+            internal string TargetSubject;
 
-            internal Config.Action action;
+            internal Config.Action Action;
         }
     }
 }

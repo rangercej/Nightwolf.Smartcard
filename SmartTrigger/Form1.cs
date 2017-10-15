@@ -40,7 +40,7 @@ namespace Nightwolf.SmartTrigger
         /// <summary>
         /// Initializes a new instance of the <see cref="ScPinWindow"/> class. 
         /// </summary>
-        /// <inheritdoc cref="Form()"/>
+        /// <inheritdoc cref="Form()" />
         public ScPinWindow()
         {
             this.InitializeComponent();
