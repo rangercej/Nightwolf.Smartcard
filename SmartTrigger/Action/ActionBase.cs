@@ -40,11 +40,8 @@
 
                 foreach (var handler in targetHandlers)
                 {
-                    if (!handler.IsAbstract)
-                    {
-                        var handlerClass = (ActionBase)Activator.CreateInstance(handler);
-                        actionHandlers.Add(handler.Name, handlerClass);
-                    }
+                    var handlerClass = (ActionBase)Activator.CreateInstance(handler);
+                    actionHandlers.Add(handler.Name, handlerClass);
                 }
             }
 
