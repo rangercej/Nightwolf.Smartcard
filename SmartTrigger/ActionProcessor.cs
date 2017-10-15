@@ -6,6 +6,8 @@
     using System.Linq;
     using System.Threading;
 
+    using Common.Logging;
+
     using Nightwolf.SmartTrigger.Action;
 
     internal sealed class ActionProcessor
@@ -17,6 +19,8 @@
         private readonly ReadOnlyDictionary<string, ActionBase> actionHandlers;
 
         private bool? pinRequired;
+
+        private ILog logger = LogManager.GetLogger(typeof(ActionProcessor));
 
         internal ActionProcessor()
         {
@@ -78,8 +82,10 @@
 
             foreach (var act in this.actions)
             {
+                this.logger.DebugFormat("Processing insert action: {0}", act.action.Target);
                 if (this.actionHandlers.ContainsKey(act.action.Target))
                 {
+                    this.logger.DebugFormat("Fire: {0}", act.action.Target);
                     this.actionHandlers[act.action.Target].PerformInsertAction(
                         act.smartcard,
                         act.targetSubject,
@@ -100,8 +106,10 @@
 
             foreach (var act in this.actions)
             {
+                this.logger.DebugFormat("Processing insert action: {0}", act.action.Target);
                 if (this.actionHandlers.ContainsKey(act.action.Target))
                 {
+                    this.logger.DebugFormat("Fire: {0}", act.action.Target);
                     this.actionHandlers[act.action.Target].PerformRemoveAction(
                         act.smartcard,
                         act.action.Parameters.ToList());

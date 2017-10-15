@@ -19,15 +19,13 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="ActionBase"/> class.
         /// </summary>
-        /// <param name="actionId">ID of the action handler</param>
-        protected ActionBase(string actionId)
+        protected ActionBase()
         {
-            this.ActionId = actionId;
             this.actionState = new Dictionary<string, object>();
         }
 
-        /// <summary>Gets the ID of the action handler</summary>
-        internal string ActionId { get; }
+        /// <summary>Gets the action ID</summary>
+        internal abstract string ActionId { get; }
 
         /// <summary>
         /// Intantiate each action handler and save in the action cache
@@ -45,12 +43,12 @@
 
                 foreach (var handler in targetHandlers)
                 {
-                    var fields = handler.GetFields(BindingFlags.Static | BindingFlags.NonPublic);
-                    var actionType = fields.FirstOrDefault(f => f.Name == "ActionId");
-                    if (!string.IsNullOrEmpty(actionType?.Name))
+                    var actionProp = handler.GetProperty("ActionId", BindingFlags.Instance | BindingFlags.NonPublic);
+                    if (actionProp != null && !handler.IsAbstract)
                     {
                         var handlerClass = (ActionBase)Activator.CreateInstance(handler);
-                        actionHandlers.Add((string)actionType.GetValue(null), handlerClass);
+                        var actionId = (string)actionProp.GetValue(handlerClass);
+                        actionHandlers.Add(actionId, handlerClass);
                     }
                 }
             }
