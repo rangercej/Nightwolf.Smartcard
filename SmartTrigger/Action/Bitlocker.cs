@@ -1,9 +1,9 @@
-﻿using Common.Logging;
-
-namespace Nightwolf.SmartTrigger.Action
+﻿namespace Nightwolf.SmartTrigger.Action
 {
     using System;
     using System.Collections.Generic;
+
+    using Common.Logging;
 
     using Nightwolf.Smartcard;
 
@@ -14,18 +14,21 @@ namespace Nightwolf.SmartTrigger.Action
         /// </summary>
         private readonly ILog logger = LogManager.GetLogger(typeof(Bitlocker));
 
-        internal new const string ActionId = "bitlocker";
+        internal Bitlocker()
+            : base("bitlocker")
+        {
+        }
 
         internal override bool PerformInsertAction(Smartcard scard, string targetCertSubject, string pin, IList<Config.Parameter> parameters)
         {
-            logger.Debug("Firing insert action bitlocker");
+            this.logger.Debug("Firing insert action bitlocker");
 
             return true;
         }
 
         internal override bool PerformRemoveAction(Smartcard scard, IList<Config.Parameter> parameters)
         {
-            logger.Debug("Firing remove action bitlocker");
+            this.logger.Debug("Firing remove action bitlocker");
 
             return true;
         }
