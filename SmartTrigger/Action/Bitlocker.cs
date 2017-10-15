@@ -14,8 +14,6 @@
         /// </summary>
         private readonly ILog logger = LogManager.GetLogger(typeof(Bitlocker));
 
-        internal override string ActionId => "bitlocker";
-
         internal override bool PerformInsertAction(Smartcard scard, string targetCertSubject, string pin, IList<Config.Parameter> parameters)
         {
             this.logger.Debug("Firing insert action bitlocker");

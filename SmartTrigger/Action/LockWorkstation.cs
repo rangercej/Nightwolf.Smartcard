@@ -19,8 +19,6 @@ namespace Nightwolf.SmartTrigger.Action
         /// </summary>
         private readonly ILog logger = LogManager.GetLogger(typeof(Bitlocker));
 
-        internal override string ActionId => "lockworkstation";
-
         internal override bool PerformInsertAction(Smartcard.Smartcard scard, string targetCertSubject, string pin, IList<Parameter> parameters)
         {
             return true;

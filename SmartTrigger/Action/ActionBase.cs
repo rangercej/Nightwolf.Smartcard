@@ -24,9 +24,6 @@
             this.actionState = new Dictionary<string, object>();
         }
 
-        /// <summary>Gets the action ID</summary>
-        internal abstract string ActionId { get; }
-
         /// <summary>
         /// Intantiate each action handler and save in the action cache
         /// </summary>
@@ -39,16 +36,14 @@
 
                 var targetHandlers = AppDomain.CurrentDomain.GetAssemblies()
                     .SelectMany(t => t.GetTypes())
-                    .Where(t => t.IsClass && t.Namespace == "Nightwolf.SmartTrigger.Action").ToList();
+                    .Where(t => t.IsClass && t.BaseType == typeof(ActionBase)).ToList();
 
                 foreach (var handler in targetHandlers)
                 {
-                    var actionProp = handler.GetProperty("ActionId", BindingFlags.Instance | BindingFlags.NonPublic);
-                    if (actionProp != null && !handler.IsAbstract)
+                    if (!handler.IsAbstract)
                     {
                         var handlerClass = (ActionBase)Activator.CreateInstance(handler);
-                        var actionId = (string)actionProp.GetValue(handlerClass);
-                        actionHandlers.Add(actionId, handlerClass);
+                        actionHandlers.Add(handler.Name, handlerClass);
                     }
                 }
             }
