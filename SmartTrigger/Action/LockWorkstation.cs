@@ -1,16 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Nightwolf.Smartcard;
-using Nightwolf.SmartTrigger.Config;
-
-namespace Nightwolf.SmartTrigger.Action
+﻿namespace Nightwolf.SmartTrigger.Action
 {
+    using System.Collections.Generic;
     using System.Runtime.InteropServices;
 
     using Common.Logging;
+    using Nightwolf.SmartTrigger.Config;
 
     internal class LockWorkstation : ActionBase
     {
@@ -19,16 +13,23 @@ namespace Nightwolf.SmartTrigger.Action
         /// </summary>
         private readonly ILog logger = LogManager.GetLogger(typeof(Bitlocker));
 
-        internal override bool PerformInsertAction(Smartcard.Smartcard scard, string targetCertSubject, string pin, IList<Parameter> parameters)
+        /// <summary>
+        /// Lock the workstation on smartcard remove
+        /// </summary>
+        /// <param name="scard">Smartcard removed</param>
+        /// <param name="parameters">Action parameters</param>
+        /// <returns>True on success, false otherwise</returns>
+        /// <inheritdoc cref="ActionBase.PerformRemoveAction"/>
+        internal override bool PerformRemoveAction(Nightwolf.Smartcard.Smartcard scard, IList<Parameter> parameters)
         {
-            return true;
-        }
-
-        internal override bool PerformRemoveAction(Smartcard.Smartcard scard, IList<Parameter> parameters)
-        {
+            this.logger.Debug("Locking workstation");
             return LockWorkStation();
         }
 
+        /// <summary>
+        /// Import the Win32 lockworkstation method
+        /// </summary>
+        /// <returns>True on success, false otherwise</returns>
         [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool LockWorkStation();

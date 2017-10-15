@@ -4,7 +4,6 @@
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
     using System.Linq;
-    using System.Reflection;
 
     using Nightwolf.Smartcard;
 
@@ -56,7 +55,10 @@
         /// <param name="pin">PIN number for smartcard</param>
         /// <param name="parameters">Parameters for the action</param>
         /// <returns>True on action success, false otherwise</returns>
-        internal abstract bool PerformInsertAction(Smartcard scard, string targetCertSubject, string pin, IList<Config.Parameter> parameters);
+        internal virtual bool PerformInsertAction(Smartcard scard, string targetCertSubject, string pin, IList<Config.Parameter> parameters)
+        {
+            return true;
+        }
 
         /// <summary>
         /// Remove action method signature
@@ -64,15 +66,18 @@
         /// <param name="scard">Smartcard object where the remove is being performed</param>
         /// <param name="parameters">Parameters for the action</param>
         /// <returns>True on action success, false otherwise</returns>
-        internal abstract bool PerformRemoveAction(Smartcard scard, IList<Config.Parameter> parameters);
+        internal virtual bool PerformRemoveAction(Smartcard scard, IList<Config.Parameter> parameters)
+        {
+            return true;
+        }
 
-        /// <summary>
-        /// Get saved state
-        /// </summary>
-        /// <typeparam name="T">Type of the state item</typeparam>
-        /// <param name="key">Key to the state item</param>
-        /// <returns>State value or default(T) if key does not exist</returns>
-        protected T GetStateItem<T>(string key)
+    /// <summary>
+    /// Get saved state
+    /// </summary>
+    /// <typeparam name="T">Type of the state item</typeparam>
+    /// <param name="key">Key to the state item</param>
+    /// <returns>State value or default(T) if key does not exist</returns>
+    protected T GetStateItem<T>(string key)
         {
             if (this.actionState.ContainsKey(key))
             {

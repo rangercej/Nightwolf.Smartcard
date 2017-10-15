@@ -1,6 +1,5 @@
 ﻿namespace Nightwolf.SmartTrigger.Action
 {
-    using System;
     using System.Collections.Generic;
 
     using Common.Logging;
