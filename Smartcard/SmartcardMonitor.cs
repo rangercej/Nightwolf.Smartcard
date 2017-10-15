@@ -181,6 +181,7 @@
         /// </summary>
         private void ResetContext()
         {
+            this.logger.Debug("Resetting scard monitor context");
             if (this.readerContext != IntPtr.Zero)
             {
                 SmartcardInterop.SCardReleaseContext(this.readerContext);
@@ -391,7 +392,7 @@
                     this.logger.DebugFormat("StateChange - start: {0}; last status = 0x{1}; statecount = {2}", i, result.ToString("X"), scardstate.Length);
 
                     // We have a 30 second timeout rather than infinite. As of Windows 8, the smartcard
-                    // service shuts down if no readers attached, and more than a couple of minutes have
+                    // service shuts down if no readers attached and more than a couple of minutes have
                     // elapsed since the last SCard API call. So a 30 second timeout will keep the service
                     // alive and mean we're not reseting context (and thus restarting smartcard service)
                     // every couple of minutes.
