@@ -308,7 +308,7 @@
 
             var state = this.currentState.Where(x => readers.Contains(x.reader)).ToList();
             if (state.Count == 0)
-            { 
+            {
                 scardstatelist = this.CreatePendingReaderState(readers);
             }
 
@@ -386,10 +386,16 @@
                 try
                 {
                     i++;
-                    this.logger.Debug(DateTime.Now + ": StateChange - start: " + i + "; last status = 0x" + result.ToString("X"));
-
                     var scardstate = this.currentState.ToArray();
-                    result = SmartcardInterop.SCardGetStatusChange(this.readerContext, SmartcardInterop.Infinite, scardstate, scardstate.Length);
+
+                    this.logger.DebugFormat("StateChange - start: {0}; last status = 0x{1}; statecount = {2}", i, result.ToString("X"), scardstate.Length);
+
+                    // We have a 30 second timeout rather than infinite. As of Windows 8, the smartcard
+                    // service shuts down if no readers attached, and more than a couple of minutes have
+                    // elapsed since the last SCard API call. So a 30 second timeout will keep the service
+                    // alive and mean we're not reseting context (and thus restarting smartcard service)
+                    // every couple of minutes.
+                    result = SmartcardInterop.SCardGetStatusChange(this.readerContext, 30000, scardstate, scardstate.Length);
                     if (this.cancelToken.IsCancellationRequested || result == SmartcardException.SCardECancelled)
                     {
                         this.logger.Debug("Cancellation requested");
@@ -401,7 +407,7 @@
                         continue;
                     }
 
-                    this.logger.Debug(DateTime.Now + ": StateChange - result: 0x" + result.ToString("X"));
+                    this.logger.Debug("StateChange - result: 0x" + result.ToString("X"));
                     var scardstatelist = scardstate.ToList();
 
                     // If the service has stopped, then we need to flag all existing cards as removed
@@ -409,6 +415,7 @@
                     {
                         // Need to reset the smartcard context
                         this.ResetContext();
+                        this.currentState.Add(awaitNewReader);
                         continue;
                     }
 
