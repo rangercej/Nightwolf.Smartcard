@@ -1,4 +1,4 @@
-# README #
+# README [![Build Status](https://travis-ci.org/rangercej/smartcardinterop.svg?branch=master)](https://travis-ci.org/rangercej/smartcardinterop)
 
 ### What is this repository for? ###
 
